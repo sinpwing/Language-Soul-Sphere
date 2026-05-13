@@ -1720,9 +1720,13 @@ z = 探索開放為正，秩序收束為負。
     uDrift: { value: state.metrics.roleDrift / 100 },
 
     uMode: { value: 0 },
-    uExposure: { value: 1.22 },
-    uGamma: { value: 0.72 },
-    uGrain: { value: 0.055 }
+    uExposure: { value: 0.62 },
+    uGamma: { value: 1.08 },
+    uGrain: { value: 0.012 },
+
+    uZoom: { value: 1.0 },
+    uViewRot: { value: 0.0 },
+    uDiskTilt: { value: 1.42 }
   };
 
   const blackHoleMaterial = new THREE.ShaderMaterial({
@@ -1758,7 +1762,9 @@ z = 探索開放為正，秩序收束為負。
 
       uniform float uExposure;
       uniform float uGamma;
-      uniform float uGrain;
+      uniform float uZoom;
+      uniform float uViewRot; 
+      uniform float uDiskTilt;
 
       #define PI 3.14159265359
 
@@ -1819,20 +1825,27 @@ z = 探索開放為正，秩序收束為負。
       }
 
       float diskBand(vec2 p, float radius, float width, float thickness, float bend, float side) {
-        float x = p.x;
-        float y = p.y;
+      float x = p.x;
+      float y = p.y;
 
-        float curve = bend / (abs(x) + 0.42);
-        curve *= side;
+      /*
+      v0.3.1 修正：
+        舊版用 bend / abs(x) 會在中心形成尖點，造成菱形。
+        這版改成 gaussian arch，讓上下透鏡弧更圓、更像黑洞光弧。
+      */
+      float arch = exp(-x * x * 0.42);
+      float targetY = side * bend * arch;
 
-        float targetY = curve;
-        float distY = abs(y - targetY);
+      float distY = abs(y - targetY);
 
-        float radial = length(vec2(x * 0.72, y * 1.25));
-        float radialMask = smoothstep(radius + width, radius, radial) * smoothstep(radius - 0.12, radius + 0.06, radial);
+      float horizontal = abs(x);
+      float spread = smoothstep(radius + width, radius * 0.62, horizontal);
+      float innerFade = smoothstep(radius * 0.22, radius * 0.90, horizontal + abs(y) * 0.18);
 
-        float band = smoothstep(thickness, 0.0, distY);
-        return band * radialMask;
+      float band = smoothstep(thickness, 0.0, distY);
+      float softness = smoothstep(1.45, 0.15, length(vec2(x * 0.62, y)));
+
+      return band * spread * innerFade * softness;
       }
 
       vec3 temperatureColor(float heat, float cold, float mist) {
@@ -1861,7 +1874,10 @@ z = 探索開放為正，秩序收束為負。
         vec2 frag = uv * 2.0 - 1.0;
 
         float aspect = uResolution.x / max(uResolution.y, 1.0);
-        vec2 p = vec2(frag.x * aspect, frag.y);
+        vec2 p = vec2(frag.x * aspect, frag.y);  
+        
+        p *= uZoom; 
+        p = rotate2D(p, uViewRot);
 
         float heat = clamp(uR, 0.0, 1.0);
         float mist = clamp(uG, 0.0, 1.0);
@@ -1900,18 +1916,18 @@ z = 探索開放為正，秩序收束為負。
         float darkMatter = smoothstep(0.46, 0.92, bgCloudB * 0.70 + bgCloudC * 0.28);
 
         float stars = 0.0;
-        stars += starField(bgP + vec2(12.3, 4.1), 72.0, 0.968);
-        stars += starField(bgP + vec2(1.7, 9.4), 145.0, 0.987) * 0.58;
-        stars += starField(bgP + vec2(20.0, 17.0), 310.0, 0.996) * 0.34;
+        stars += starField(bgP + vec2(12.3, 4.1), 58.0, 0.982);
+        stars += starField(bgP + vec2(1.7, 9.4), 118.0, 0.994) * 0.34;
+        stars += starField(bgP + vec2(20.0, 17.0), 240.0, 0.998) * 0.18;
 
         float galaxyA = softStar(bgP, vec2(-1.12, -0.48), 0.012, 0.9);
         galaxyA += softStar(bgP, vec2(-1.08, -0.48), 0.038, 0.25);
         float galaxyB = softStar(bgP, vec2(1.15, 0.34), 0.018, 0.55);
         galaxyB += softStar(bgP, vec2(1.22, 0.35), 0.055, 0.20);
 
-        vec3 bgCold = vec3(0.055, 0.070, 0.082);
-        vec3 bgBlue = vec3(0.15, 0.22, 0.26);
-        vec3 bgWarm = vec3(0.35, 0.24, 0.18);
+        vec3 bgCold = vec3(0.015, 0.020, 0.028);
+        vec3 bgBlue = vec3(0.055, 0.078, 0.092);
+        vec3 bgWarm = vec3(0.12, 0.075, 0.052);
 
         vec3 col = bgCold;
         col += bgBlue * milkyDust * (0.36 + cold * 0.18);
@@ -1921,7 +1937,7 @@ z = 探索開放為正，秩序收束為負。
         col += vec3(0.72, 0.82, 1.0) * galaxyB;
 
         vec2 diskP = p;
-        diskP.y *= 1.24;
+        diskP.y *= uDiskTilt;
         diskP = rotate2D(diskP, 0.018 + drift * 0.035);
 
         float diskRadius = 0.48;
@@ -2078,7 +2094,78 @@ z = 探索開放為正，秩序收束為負。
     debrisItems.push(item);
     debrisGroup.add(mesh);
   }
+  const viewControl = {
+    zoom: 1.0,
+    rot: 0.0,
+    tilt: 1.42,
+    dragging: false,
+    lastX: 0,
+    lastY: 0
+  };
 
+  function clampViewControl() {
+    viewControl.zoom = clamp(viewControl.zoom, 0.55, 2.45);
+    viewControl.rot = clamp(viewControl.rot, -0.65, 0.65);
+    viewControl.tilt = clamp(viewControl.tilt, 0.72, 2.25);
+  }
+
+  stage.addEventListener('wheel', (event) => {
+    event.preventDefault();
+
+    const zoomFactor = Math.exp(-event.deltaY * 0.001);
+    viewControl.zoom *= zoomFactor;
+    clampViewControl();
+
+    blackHoleUniforms.uZoom.value = viewControl.zoom;
+  }, { passive: false });
+
+  stage.addEventListener('pointerdown', (event) => {
+    viewControl.dragging = true;
+    viewControl.lastX = event.clientX;
+    viewControl.lastY = event.clientY;
+    stage.setPointerCapture?.(event.pointerId);
+  });
+
+  stage.addEventListener('pointermove', (event) => {
+    if (!viewControl.dragging) return;
+
+    const dx = event.clientX - viewControl.lastX;
+    const dy = event.clientY - viewControl.lastY;
+
+    viewControl.lastX = event.clientX;
+    viewControl.lastY = event.clientY;
+
+    /*
+      左右拖曳：旋轉黑洞觀測角度
+      上下拖曳：改變吸積盤傾角
+    */
+    viewControl.rot += dx * 0.0025;
+    viewControl.tilt += dy * 0.0045;
+
+    clampViewControl();
+
+    blackHoleUniforms.uViewRot.value = viewControl.rot;
+    blackHoleUniforms.uDiskTilt.value = viewControl.tilt;
+  });
+
+  stage.addEventListener('pointerup', (event) => {
+    viewControl.dragging = false;
+    stage.releasePointerCapture?.(event.pointerId);
+  });
+
+  stage.addEventListener('pointercancel', () => {
+    viewControl.dragging = false;
+  });
+
+  stage.addEventListener('dblclick', () => {
+    viewControl.zoom = 1.0;
+    viewControl.rot = 0.0;
+    viewControl.tilt = 1.42;
+
+    blackHoleUniforms.uZoom.value = viewControl.zoom;
+    blackHoleUniforms.uViewRot.value = viewControl.rot;
+    blackHoleUniforms.uDiskTilt.value = viewControl.tilt;
+  });
   function getModeNumber() {
     if (state.mode === 'gravity') return 1;
     if (state.mode === 'fracture') return 2;
@@ -2099,15 +2186,18 @@ z = 探索開放為正，秩序收束為負。
     blackHoleUniforms.uDrift.value = state.metrics.roleDrift / 100;
 
     blackHoleUniforms.uMode.value = getModeNumber();
-
+    blackHoleUniforms.uZoom.value = viewControl.zoom;
+    blackHoleUniforms.uViewRot.value = viewControl.rot;
+    blackHoleUniforms.uDiskTilt.value = viewControl.tilt;
+    
     const heat = state.rgb.r / 255;
     const mist = state.rgb.g / 255;
     const cold = state.rgb.b / 255;
 
     if (bloomPass) {
-      bloomPass.strength = (isMobile ? 0.70 : 1.00) + heat * 0.18 + cold * 0.12;
-      bloomPass.radius = 0.50 + mist * 0.18;
-      bloomPass.threshold = 0.12;
+    bloomPass.strength = (isMobile ? 0.28 : 0.42) + heat * 0.10 + cold * 0.08;
+    bloomPass.radius = 0.34 + mist * 0.10;
+    bloomPass.threshold = 0.42;
     }
   }
 
