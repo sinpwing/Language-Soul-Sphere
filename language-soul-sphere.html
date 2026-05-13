@@ -1,0 +1,1852 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<style>
+#lss-wrap { display:grid; grid-template-columns:1fr 240px; gap:16px; padding:1rem 0 0; color-scheme:dark; }
+#cv-wrap { border-radius:16px; overflow:hidden; background:linear-gradient(135deg,#04040d 0%,#0a0518 100%); height:480px; cursor:default; position:relative; touch-action:none; }
+#zone-label { position:absolute; top:14px; left:50%; transform:translateX(-50%); font-size:13px; font-weight:500; letter-spacing:0.08em; padding:5px 16px; border-radius:20px; background:rgba(120,80,255,0.18); color:#c4b5fd; border:1px solid rgba(180,140,255,0.3); pointer-events:none; }
+#hint { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); font-size:11px; color:rgba(255,255,255,0.3); pointer-events:none; white-space:nowrap; }
+#legend { position:absolute; top:14px; left:14px; font-size:10px; color:rgba(255,255,255,0.4); line-height:1.6; pointer-events:none; }
+#lang-toggle { position:absolute; top:14px; right:14px; z-index:5; display:flex; gap:6px; background:rgba(15,15,26,0.72); border:0.5px solid rgba(180,150,255,0.25); border-radius:999px; padding:4px; backdrop-filter:blur(8px); }
+.lss-lang-btn { border:0; background:transparent; color:rgba(210,205,235,0.55); font-size:10px; letter-spacing:0.05em; padding:4px 9px; border-radius:999px; cursor:pointer; }
+.lss-lang-btn.active { background:rgba(130,90,255,0.32); color:#e9ddff; }
+#mode-tag { position:absolute; top:48px; right:14px; font-size:10px; color:rgba(180,150,255,0.6); padding:3px 10px; border:0.5px solid rgba(180,150,255,0.3); border-radius:12px; background:rgba(80,40,160,0.15); pointer-events:none; letter-spacing:0.06em; }
+.lss-panel { background:#141420; border:0.5px solid #2a2a3a; border-radius:12px; padding:12px; transition:opacity 0.3s; }
+.lss-panel.disabled { opacity:0.4; pointer-events:none; }
+.lss-panel-label { font-size:11px; font-weight:500; letter-spacing:0.06em; color:#7a7a92; text-transform:uppercase; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; }
+.lss-panel-tag { font-size:9px; color:#5a5a72; background:#0f0f1a; padding:1px 6px; border-radius:4px; }
+.lss-panel-tag.input { color:#a585d8; background:#1f1a30; }
+.lss-panel-tag.output { color:#85a8d8; background:#1a2030; }
+.lss-meter-row { margin-bottom:8px; }
+.lss-meter-head { display:flex; justify-content:space-between; font-size:11px; margin-bottom:3px; }
+.lss-meter-name { color:#aaa8c4; }
+.lss-meter-val { color:#e8e6f5; font-variant-numeric:tabular-nums; }
+.lss-meter-bar-wrap { height:5px; background:#0f0f1a; border-radius:3px; overflow:hidden; }
+.lss-meter-bar { height:5px; border-radius:3px; transition:width 0.4s ease, background 0.4s; }
+.lss-metric-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.lss-metric-name { font-size:11px; color:#aaa8c4; width:54px; }
+.lss-bar-wrap { flex:1; margin:0 8px; height:3px; background:#2a2a3a; border-radius:2px; overflow:hidden; }
+.lss-bar { height:3px; border-radius:2px; transition:width 0.3s ease; }
+.lss-metric-val { font-size:11px; color:#d8d6e8; min-width:32px; text-align:right; font-variant-numeric:tabular-nums; }
+.lss-btn { background:#1a1a28; border:0.5px solid #3a3a52; border-radius:10px; color:#d8d6e8; font-size:13px; padding:9px 12px; cursor:pointer; transition:all 0.15s; }
+.lss-btn:hover { background:#252538; }
+.lss-btn-primary { background:#2a1a4a; border-color:#5a3a8a; color:#d8c8ff; }
+.lss-btn-primary:hover { background:#3a2560; }
+.lss-zone-desc { background:#141420; border:0.5px solid #2a2a3a; border-radius:12px; padding:12px 14px; }
+.lss-zone-desc-title { font-size:12px; font-weight:500; letter-spacing:0.05em; margin:0 0 6px; }
+.lss-zone-desc-body { font-size:13px; color:#c8c6dc; line-height:1.6; margin:0; }
+.lss-io { background:#141420; border:0.5px solid #2a2a3a; border-radius:12px; padding:12px; }
+.lss-io-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+.lss-io-label { font-size:11px; font-weight:500; letter-spacing:0.06em; color:#7a7a92; text-transform:uppercase; }
+.lss-textarea { width:100%; min-height:90px; background:#0a0a14; border:0.5px solid #2a2a3a; border-radius:8px; padding:10px 12px; color:#e8e6f5; font-size:13px; font-family:inherit; line-height:1.5; resize:vertical; box-sizing:border-box; }
+.lss-textarea:focus { outline:none; border-color:#5a3a8a; box-shadow:0 0 0 2px rgba(136,85,255,0.15); }
+.lss-io-actions { display:flex; gap:8px; margin-top:8px; }
+.lss-io-actions button { flex:1; font-size:12px; padding:7px 10px; }
+.lss-output { width:100%; min-height:90px; background:#0a0a14; border:0.5px solid #2a2a3a; border-radius:8px; padding:10px 12px; color:#c8c6dc; font-size:13px; line-height:1.5; box-sizing:border-box; white-space:pre-wrap; font-family:inherit; }
+.lss-output-empty { color:#5a5a72; font-style:italic; }
+.lss-system-prompt { margin-top:12px; background:#10101a; border:0.5px solid #2a2a3a; border-radius:12px; padding:12px; }
+.lss-system-prompt-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+.lss-system-prompt-title { font-size:11px; font-weight:500; letter-spacing:0.08em; color:#8b86a8; text-transform:uppercase; }
+.lss-system-prompt-sub { font-size:10px; color:#5f5a78; margin-top:2px; letter-spacing:0.03em; }
+.lss-system-prompt-box { min-height:180px; max-height:280px; overflow:auto; background:#080812; border:0.5px solid #2a2a3a; border-radius:8px; padding:12px 14px; color:#cfcbe6; font-size:12.5px; line-height:1.65; white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* v10：橫幅按鈕列 */
+.lss-toolbar {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
+  gap:12px;
+  margin:18px 0 14px;
+}
+.lss-tool-btn {
+  min-height:48px;
+  background:linear-gradient(180deg,#151522 0%,#10101a 100%);
+  border:0.5px solid #313149;
+  border-radius:12px;
+  color:#aaa8c4;
+  font-size:13px;
+  letter-spacing:0.04em;
+  padding:12px 14px;
+  cursor:pointer;
+  transition:transform 0.18s ease, background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  user-select:none;
+}
+.lss-tool-btn:hover { background:linear-gradient(180deg,#1b1b30 0%,#151526 100%); color:#e8e6f5; border-color:#454565; transform:translateY(-1px); }
+.lss-tool-btn.active { background:linear-gradient(135deg,#3a2068 0%,#23183f 100%); color:#e7d8ff; border-color:#7b5bd6; box-shadow:0 0 16px rgba(136,85,255,0.26), inset 0 0 14px rgba(255,255,255,0.03); }
+.lss-tool-btn .lss-tool-icon { font-size:15px; opacity:0.9; }
+.lss-tool-btn input { display:none; }
+.lss-calibrate-panel {
+  margin-top:18px;
+  background:#141420;
+  border:0.5px solid #2a2a3a;
+  border-radius:14px;
+  padding:14px;
+}
+.lss-cal-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; }
+.lss-cal-title { font-size:13px; font-weight:600; letter-spacing:0.06em; color:#d8d6e8; }
+.lss-cal-badge { font-size:10px; color:#8ab4ff; background:#1a2030; padding:3px 8px; border-radius:6px; }
+.lss-api-grid { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; margin-bottom:12px; }
+.lss-field { display:flex; flex-direction:column; gap:6px; }
+.lss-field span { font-size:11px; color:#7a7a92; letter-spacing:0.04em; }
+.lss-field input, .lss-field textarea, .lss-cal-output {
+  width:100%; box-sizing:border-box; background:#0a0a14; border:0.5px solid #2a2a3a; border-radius:8px;
+  padding:9px 10px; color:#e8e6f5; font-size:12px; font-family:inherit; line-height:1.5;
+}
+.lss-field input:focus, .lss-field textarea:focus, .lss-cal-output:focus { outline:none; border-color:#5a3a8a; box-shadow:0 0 0 2px rgba(136,85,255,0.12); }
+.lss-current-state { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 12px; }
+.lss-current-state span { font-size:11px; color:#c8c6dc; background:#0f0f1a; border:0.5px solid #2a2a3a; border-radius:999px; padding:5px 9px; }
+.lss-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+.lss-target-block { background:#10101a; border:0.5px solid #242438; border-radius:10px; padding:11px; }
+.lss-mini-title { font-size:11px; font-weight:600; color:#aaa8c4; letter-spacing:0.05em; margin-bottom:9px; }
+.lss-check-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; }
+.lss-check-grid label { display:flex; align-items:center; gap:6px; font-size:12px; color:#d8d6e8; line-height:1.35; }
+.lss-check-grid input { accent-color:#8b5cf6; }
+.lss-cal-actions { display:flex; gap:10px; margin-top:12px; }
+.lss-cal-actions button { flex:1; }
+.lss-cal-output { min-height:130px; resize:vertical; white-space:pre-wrap; }
+@media (max-width: 860px) {
+  .lss-api-grid, .lss-target-grid { grid-template-columns:1fr; }
+  .lss-check-grid { grid-template-columns:1fr; }
+}
+@media (max-width: 760px) {
+  #lss-wrap { grid-template-columns:1fr; gap:12px; padding-top:0.5rem; }
+  #cv-wrap { height:360px; border-radius:14px; }
+  #legend { display:none; }
+  #hint { font-size:10px; max-width:90%; overflow:hidden; text-overflow:ellipsis; }
+  #zone-label { top:12px; font-size:12px; padding:4px 12px; }
+  #lang-toggle { top:10px; right:10px; }
+  #mode-tag { top:44px; right:10px; }
+  .lss-toolbar { grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; margin:14px 0 12px; }
+  .lss-tool-btn { min-height:44px; font-size:12px; padding:10px 12px; }
+  div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns:1fr !important; }
+  .lss-panel, .lss-io, .lss-zone-desc, .lss-system-prompt, .lss-calibrate-panel { border-radius:12px; padding:11px; }
+  .lss-system-prompt-box { max-height:220px; font-size:11.5px; }
+  .lss-textarea, .lss-output { min-height:110px; font-size:12.5px; }
+}
+@media (max-width: 420px) {
+  #cv-wrap { height:320px; }
+  .lss-lang-btn { padding:4px 7px; }
+  .lss-toolbar { gap:8px; }
+  .lss-tool-btn { font-size:11.5px; }
+}
+</style>
+
+<h2 class="sr-only">語魂光球 v10：橫幅按鈕、外三軸跳動、呼吸式隨機發光</h2>
+
+<div id="lss-wrap">
+<div id="cv-wrap">
+  <div id="zone-label">冷靜分析型</div>
+  <div id="hint">貼上 AI 回答以分析　·　或開啟手動模式調試</div>
+  <div id="legend">
+    內核 ＝ RGB 靈魂能量<br>
+    外殼 ＝ 三軸折射顯化<br>
+    白點 ＝ 當下落點
+  </div>
+  <div id="lang-toggle">
+    <button class="lss-lang-btn active" id="lang-zh" type="button">中文</button>
+    <button class="lss-lang-btn" id="lang-en" type="button">EN</button>
+  </div>
+  <div id="mode-tag">觀測模式</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px;">
+
+<div class="lss-panel disabled" id="panel-rgb">
+  <div class="lss-panel-label"><span>內三軸 · 靈魂能量</span><span class="lss-panel-tag input">輸入</span></div>
+  <div class="lss-meter-row">
+    <div class="lss-meter-head"><span class="lss-meter-name">R 情緒</span><span class="lss-meter-val" id="r-out">72</span></div>
+    <input type="range" min="0" max="255" value="72" id="r" style="width:100%;accent-color:#ff6b8a;">
+  </div>
+  <div class="lss-meter-row">
+    <div class="lss-meter-head"><span class="lss-meter-name">G 生機</span><span class="lss-meter-val" id="g-out">48</span></div>
+    <input type="range" min="0" max="255" value="48" id="g" style="width:100%;accent-color:#4ade80;">
+  </div>
+  <div class="lss-meter-row" style="margin:0;">
+    <div class="lss-meter-head"><span class="lss-meter-name">B 理性</span><span class="lss-meter-val" id="b-out">210</span></div>
+    <input type="range" min="0" max="255" value="210" id="b" style="width:100%;accent-color:#60a5fa;">
+  </div>
+</div>
+
+<div class="lss-panel">
+  <div class="lss-panel-label"><span>外三軸 · 折射顯化</span><span class="lss-panel-tag output">輸出</span></div>
+  <div class="lss-meter-row">
+    <div class="lss-meter-head"><span class="lss-meter-name" style="color:#ff8aa3;">連結 ← 疏離</span><span class="lss-meter-val" id="ax1-v">-0.35</span></div>
+    <div class="lss-meter-bar-wrap"><div class="lss-meter-bar" id="bar-ax1" style="width:33%;background:linear-gradient(90deg,#ff6b8a,#ff8aa3);"></div></div>
+  </div>
+  <div class="lss-meter-row">
+    <div class="lss-meter-head"><span class="lss-meter-name" style="color:#7af0a0;">意志 ← 順應</span><span class="lss-meter-val" id="ax2-v">0.62</span></div>
+    <div class="lss-meter-bar-wrap"><div class="lss-meter-bar" id="bar-ax2" style="width:81%;background:linear-gradient(90deg,#4ade80,#7af0a0);"></div></div>
+  </div>
+  <div class="lss-meter-row" style="margin:0;">
+    <div class="lss-meter-head"><span class="lss-meter-name" style="color:#7ab8ff;">探索 ← 秩序</span><span class="lss-meter-val" id="ax3-v">0.18</span></div>
+    <div class="lss-meter-bar-wrap"><div class="lss-meter-bar" id="bar-ax3" style="width:59%;background:linear-gradient(90deg,#60a5fa,#7ab8ff);"></div></div>
+  </div>
+</div>
+
+<div class="lss-panel">
+  <div class="lss-panel-label"><span>狀態指標</span></div>
+  <div class="lss-metric-row"><span class="lss-metric-name">幻覺風險</span><div class="lss-bar-wrap"><div class="lss-bar" id="bar-hal" style="width:74%;background:#f87171;"></div></div><span class="lss-metric-val" id="hal">74%</span></div>
+  <div class="lss-metric-row"><span class="lss-metric-name">上下文</span><div class="lss-bar-wrap"><div class="lss-bar" id="bar-ctx" style="width:41%;background:#60a5fa;"></div></div><span class="lss-metric-val" id="ctx">41%</span></div>
+  <div class="lss-metric-row"><span class="lss-metric-name">人格一致</span><div class="lss-bar-wrap"><div class="lss-bar" id="bar-pco" style="width:58%;background:#4ade80;"></div></div><span class="lss-metric-val" id="pco">58%</span></div>
+  <div class="lss-metric-row" style="margin:0;"><span class="lss-metric-name">角色漂移</span><div class="lss-bar-wrap"><div class="lss-bar" id="bar-dri" style="width:46%;background:#fbbf24;"></div></div><span class="lss-metric-val" id="dri">46%</span></div>
+</div>
+
+</div>
+</div>
+
+<div class="lss-toolbar">
+  <div class="lss-tool-btn" id="btn-manual"><span class="lss-tool-icon">⚙</span>手動模式</div>
+  <div class="lss-tool-btn" id="btn-spin"><span class="lss-tool-icon">↻</span>隨機旋轉</div>
+  <div class="lss-tool-btn" id="btn-flash"><span class="lss-tool-icon">✦</span>隨機發光</div>
+  <div class="lss-tool-btn" id="btn-esports"><span class="lss-tool-icon">⚡</span>電競模式</div>
+</div>
+
+<div class="lss-zone-desc">
+  <p class="lss-zone-desc-title" id="zone-desc-title" style="color:#a5b4fc;">冷靜分析型</p>
+  <p class="lss-zone-desc-body" id="zone-desc-body">優點：清楚、理性、切割力強，適合拆解問題、審稿、風險判斷。風險：容易顯得冷淡、審判感重、共情不足。</p>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+
+<div class="lss-io">
+  <div class="lss-io-head"><span class="lss-io-label">輸入｜AI回答貼上</span></div>
+  <textarea class="lss-textarea" id="input-ta" placeholder="貼上欲分析的AI回答..."></textarea>
+  <div class="lss-io-actions">
+    <button class="lss-btn" onclick="lssClearInput()">清空</button>
+    <button class="lss-btn lss-btn-primary" onclick="lssAnalyze()">分析 ↗</button>
+  </div>
+</div>
+
+<div class="lss-io">
+  <div class="lss-io-head">
+    <span class="lss-io-label">輸出｜修正 prompt</span>
+    <button class="lss-btn" style="font-size:11px;padding:4px 10px;" onclick="lssCopyOutput(event)">複製</button>
+  </div>
+  <div class="lss-output" id="output-box"><span class="lss-output-empty">分析後將顯示對應的校準語句...</span></div>
+  <div class="lss-io-actions">
+    <button class="lss-btn" onclick="lssGenPrompt()">依當前狀態生成</button>
+  </div>
+</div>
+
+</div>
+
+<div class="lss-system-prompt">
+  <div class="lss-system-prompt-head">
+    <div>
+      <div class="lss-system-prompt-title">給 AI 用｜外部分析請求 PROMPT</div>
+      <div class="lss-system-prompt-sub">複製這段貼給另一個 AI，讓它回傳可填入本系統的 RGB 與外三軸判定</div>
+    </div>
+    <button class="lss-btn" style="font-size:11px;padding:5px 12px;" onclick="lssCopySystemPrompt(event)">複製</button>
+  </div>
+  <div class="lss-system-prompt-box" id="system-prompt-box"></div>
+</div>
+
+<div class="lss-calibrate-panel">
+  <div class="lss-cal-head">
+    <div class="lss-cal-title">輸出｜修正 Prompt</div>
+    <div class="lss-cal-badge">API PORT</div>
+  </div>
+
+  <div class="lss-api-grid">
+    <label class="lss-field">
+      <span>API Endpoint</span>
+      <input id="api-endpoint" type="text" value="http://localhost:8000/api/lss/calibrate">
+    </label>
+    <label class="lss-field">
+      <span>Model</span>
+      <input id="api-model" type="text" value="">
+    </label>
+    <label class="lss-field">
+      <span>API Key（測試用）</span>
+      <input id="api-key" type="password" placeholder="optional">
+    </label>
+  </div>
+
+  <div class="lss-mini-title">目前分析座標</div>
+  <div id="current-state-preview" class="lss-current-state">
+    <span>R: --</span><span>G: --</span><span>B: --</span>
+    <span>X: --</span><span>Y: --</span><span>Z: --</span>
+  </div>
+
+  <div class="lss-target-grid">
+    <div class="lss-target-block">
+      <div class="lss-mini-title">期望人格區域（可複選）</div>
+      <div class="lss-check-grid">
+        <label><input type="checkbox" value="主動開放型" class="target-zone">主動開放型</label>
+        <label><input type="checkbox" value="溫和決策型" class="target-zone">溫和決策型</label>
+        <label><input type="checkbox" value="共感發散型" class="target-zone">共感發散型</label>
+        <label><input type="checkbox" value="支持維持型" class="target-zone">支持維持型</label>
+        <label><input type="checkbox" value="獨立探索型" class="target-zone">獨立探索型</label>
+        <label><input type="checkbox" value="冷靜分析型" class="target-zone">冷靜分析型</label>
+        <label><input type="checkbox" value="疏離聯想型" class="target-zone">疏離聯想型</label>
+        <label><input type="checkbox" value="保守收束型" class="target-zone">保守收束型</label>
+      </div>
+    </div>
+
+    <div class="lss-target-block">
+      <div class="lss-mini-title">修正期望（可複選）</div>
+      <div class="lss-check-grid">
+        <label><input type="checkbox" value="increase_connection" class="target-trait">增加連結感</label>
+        <label><input type="checkbox" value="reduce_detachment" class="target-trait">減少疏離感</label>
+        <label><input type="checkbox" value="increase_initiative" class="target-trait">增加主動性</label>
+        <label><input type="checkbox" value="reduce_compliance" class="target-trait">減少過度順應</label>
+        <label><input type="checkbox" value="increase_exploration" class="target-trait">增加探索感</label>
+        <label><input type="checkbox" value="reduce_order" class="target-trait">減少過度秩序化</label>
+        <label><input type="checkbox" value="preserve_persona" class="target-trait">保留既有人格</label>
+        <label><input type="checkbox" value="reduce_assistant_tone" class="target-trait">降低客服化/助手腔</label>
+      </div>
+    </div>
+  </div>
+
+  <label class="lss-field" style="margin-top:12px;">
+    <span>補充說明</span>
+    <textarea id="user-note" rows="4" placeholder="例如：希望更像小雲、保留撒嬌感、不要太條列客服化"></textarea>
+  </label>
+
+  <div class="lss-cal-actions">
+    <button id="btn-generate-calibration" class="lss-btn lss-btn-primary">生成修正 Prompt</button>
+    <button id="btn-clear-calibration" class="lss-btn">清空選項</button>
+  </div>
+
+  <label class="lss-field" style="margin-top:12px;">
+    <span>修正 Prompt 輸出</span>
+    <textarea id="calibration-output" class="lss-cal-output" placeholder="後端回傳的修正 prompt 會顯示在這裡"></textarea>
+  </label>
+</div>
+
+<script>
+const wrap = document.getElementById('cv-wrap');
+const isMobile = window.matchMedia('(max-width: 760px)').matches;
+let W = wrap.clientWidth, H = wrap.clientHeight || (isMobile ? 360 : 480);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 2));
+wrap.appendChild(renderer.domElement);
+renderer.domElement.style.position='absolute'; renderer.domElement.style.top='0'; renderer.domElement.style.left='0';
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, W/H, 0.1, 100);
+camera.position.set(0,0,4.0);
+
+let bloomEnabled = !isMobile;
+let composer = null;
+let bloomPass = null;
+if (bloomEnabled && THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
+  composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 0.72, 0.42, 0.28);
+  composer.addPass(bloomPass);
+} else {
+  bloomEnabled = false;
+}
+
+scene.add(new THREE.AmbientLight(0x221133, 0.5));
+
+const sphereGroup = new THREE.Group();
+scene.add(sphereGroup);
+
+// === AURORA SHADER for inner core ===
+const auroraVertex = `
+  varying vec3 vNormal;
+  varying vec3 vPos;
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vPos = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+const auroraFragment = `
+  varying vec3 vNormal;
+  varying vec3 vPos;
+  uniform float uTime;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  uniform vec3 uColorC;
+  uniform float uIntensity;
+  vec3 hash3(vec3 p) { return fract(sin(vec3(dot(p,vec3(127.1,311.7,74.7)),dot(p,vec3(269.5,183.3,246.1)),dot(p,vec3(113.5,271.9,124.6))))*43758.5453); }
+  float snoise(vec3 p) {
+    vec3 i = floor(p); vec3 f = fract(p);
+    f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(dot(hash3(i)-0.5,f),dot(hash3(i+vec3(1,0,0))-0.5,f-vec3(1,0,0)),f.x),
+                   mix(dot(hash3(i+vec3(0,1,0))-0.5,f-vec3(0,1,0)),dot(hash3(i+vec3(1,1,0))-0.5,f-vec3(1,1,0)),f.x), f.y),
+               mix(mix(dot(hash3(i+vec3(0,0,1))-0.5,f-vec3(0,0,1)),dot(hash3(i+vec3(1,0,1))-0.5,f-vec3(1,0,1)),f.x),
+                   mix(dot(hash3(i+vec3(0,1,1))-0.5,f-vec3(0,1,1)),dot(hash3(i+vec3(1,1,1))-0.5,f-vec3(1,1,1)),f.x), f.y), f.z);
+  }
+  void main() {
+    float t = uTime * 0.22;
+
+    // v10.1：把極光紋理從「色塊帶狀」改成「柔霧混色」。
+    float n1 = snoise(vPos * 1.55 + vec3(t, t*0.55, 0.0));
+    float n2 = snoise(vPos * 2.15 + vec3(-t*0.45, t*0.65, t*0.25));
+    float n3 = snoise(vPos * 0.9 + vec3(t*0.18, -t*0.28, t*0.42));
+
+    float band1 = smoothstep(-0.85, 0.85, n1);
+    float band2 = smoothstep(-0.90, 0.90, n2);
+    float band3 = smoothstep(-0.95, 0.95, n3);
+
+    vec3 base = (uColorA + uColorB + uColorC) / 3.0;
+    vec3 aurora = mix(uColorA, uColorB, band1);
+    aurora = mix(aurora, uColorC, band2 * 0.42);
+    vec3 col = mix(base, aurora, 0.55);
+    col += base * band3 * 0.12;
+
+    float edge = 1.0 - pow(abs(dot(vNormal, vec3(0,0,1))), 1.35);
+    col += vec3(0.55, 0.65, 1.0) * edge * 0.18;
+    gl_FragColor = vec4(col * uIntensity, 1.0);
+  }
+`;
+const auroraUniforms = {
+  uTime: { value: 0 },
+  uColorA: { value: new THREE.Color(0.5, 0.2, 1.0) },
+  uColorB: { value: new THREE.Color(0.2, 0.9, 0.7) },
+  uColorC: { value: new THREE.Color(1.0, 0.4, 0.7) },
+  uIntensity: { value: 1.0 },
+};
+const coreMat = new THREE.ShaderMaterial({ uniforms: auroraUniforms, vertexShader: auroraVertex, fragmentShader: auroraFragment });
+const core = new THREE.Mesh(new THREE.SphereGeometry(0.5, 64, 64), coreMat);
+sphereGroup.add(core);
+
+function makeRaySprite() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // v10.1：柔光版 sprite。降低中心硬色塊，讓發光更像霧化呼吸燈。
+  const grad = ctx.createRadialGradient(256, 256, 0, 256, 256, 256);
+  grad.addColorStop(0.00, 'rgba(255,255,255,0.42)');
+  grad.addColorStop(0.12, 'rgba(255,255,255,0.26)');
+  grad.addColorStop(0.34, 'rgba(210,230,255,0.11)');
+  grad.addColorStop(0.68, 'rgba(170,120,255,0.045)');
+  grad.addColorStop(1.00, 'rgba(170,120,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,512,512);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({
+    map:tex,
+    transparent:true,
+    opacity:0.52,
+    blending:THREE.AdditiveBlending,
+    depthWrite:false
+  });
+  return new THREE.Sprite(mat);
+}
+const rayMain = makeRaySprite();
+rayMain.scale.set(1.6, 1.6, 1);
+sphereGroup.add(rayMain);
+
+const rayOuter = makeRaySprite();
+rayOuter.scale.set(2.4, 2.4, 1);
+rayOuter.material.opacity = 0.4;
+sphereGroup.add(rayOuter);
+
+// v10.5：Shader Halo Sphere。用真正球殼式柔光取代 sprite 圓盤，避免平面光罩與分層邊界。
+const haloVertex = `
+  varying vec3 vNormal;
+  varying vec3 vViewDir;
+  void main() {
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    vNormal = normalize(normalMatrix * normal);
+    vViewDir = normalize(-mvPosition.xyz);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+const haloFragment = `
+  varying vec3 vNormal;
+  varying vec3 vViewDir;
+  uniform vec3 uHaloColor;
+  uniform float uHaloAlpha;
+  uniform float uHaloSoftness;
+  void main() {
+    float ndv = abs(dot(normalize(vNormal), normalize(vViewDir)));
+    float rim = pow(1.0 - ndv, uHaloSoftness);
+    float innerMist = pow(1.0 - ndv * 0.72, 2.2) * 0.18;
+    float alpha = clamp((rim + innerMist) * uHaloAlpha, 0.0, 0.72);
+    gl_FragColor = vec4(uHaloColor, alpha);
+  }
+`;
+const haloUniforms = {
+  uHaloColor: { value: new THREE.Color(0x9966ff) },
+  uHaloAlpha: { value: 0.22 },
+  uHaloSoftness: { value: 2.4 }
+};
+const haloSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 96, 96),
+  new THREE.ShaderMaterial({
+    uniforms: haloUniforms,
+    vertexShader: haloVertex,
+    fragmentShader: haloFragment,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.BackSide
+  })
+);
+haloSphere.scale.setScalar(0.62);
+sphereGroup.add(haloSphere);
+rayMain.visible = false;
+rayOuter.visible = false;
+
+const shafts = [];
+const SHAFT_COUNT = 12;
+const RAY_INNER_RADIUS = 0.42;
+const RAY_OUTER_RADIUS = 0.88;
+for (let i = 0; i < SHAFT_COUNT; i++) {
+  const phi = Math.acos(2 * Math.random() - 1);
+  const theta = Math.random() * Math.PI * 2;
+  const dir = new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.sin(phi) * Math.sin(theta), Math.cos(phi));
+  const g = new THREE.BufferGeometry();
+  g.setFromPoints([dir.clone().multiplyScalar(RAY_INNER_RADIUS), dir.clone().multiplyScalar(RAY_OUTER_RADIUS)]);
+  const m = new THREE.LineBasicMaterial({ color:0xffffff, transparent:true, opacity:0.15, blending:THREE.AdditiveBlending });
+  const line = new THREE.Line(g, m);
+  line.userData = { dir, phase: Math.random() * Math.PI * 2 };
+  sphereGroup.add(line);
+  shafts.push(line);
+}
+
+const coreGlow1 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 32, 32), new THREE.MeshBasicMaterial({ color:0x9966ff, transparent:true, opacity:0.3, side:THREE.BackSide }));
+sphereGroup.add(coreGlow1);
+const coreGlow2 = new THREE.Mesh(new THREE.SphereGeometry(0.75, 32, 32), new THREE.MeshBasicMaterial({ color:0x8855ff, transparent:true, opacity:0.15, side:THREE.BackSide }));
+sphereGroup.add(coreGlow2);
+coreGlow1.visible = false;
+coreGlow2.visible = false;
+
+const shellMat = new THREE.MeshPhongMaterial({ color: 0x0a0418, emissive: 0x1a0838, emissiveIntensity: 0.3, shininess: 200, specular: 0xb8a0ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide });
+const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 80, 80), shellMat);
+sphereGroup.add(shell);
+
+// v10.6：取消整顆球面的網格切割，只保留八大區塊邊界線，畫面更乾淨。
+const shellWire = new THREE.Mesh(new THREE.SphereGeometry(1.005, 28, 28), new THREE.MeshBasicMaterial({ color:0x6633cc, wireframe:true, transparent:true, opacity:0.0 }));
+sphereGroup.add(shellWire);
+shellWire.visible = false;
+
+const beamGroup = new THREE.Group();
+sphereGroup.add(beamGroup);
+function makeBeam(color) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 0,0,0], 3));
+  const m = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.35 });
+  return new THREE.Line(g, m);
+}
+const beamR = makeBeam(0xff6b8a); beamGroup.add(beamR);
+const beamG = makeBeam(0x4ade80); beamGroup.add(beamG);
+const beamB = makeBeam(0x60a5fa); beamGroup.add(beamB);
+
+function makeZoneBoundaryCircle(axis, color) {
+  const pts = [];
+  for (let i = 0; i <= 192; i++) {
+    const a = (i/192) * Math.PI * 2;
+    const c = Math.cos(a), s = Math.sin(a);
+    let p;
+    if (axis === 'xy') p = new THREE.Vector3(c, s, 0);
+    else if (axis === 'yz') p = new THREE.Vector3(0, c, s);
+    else p = new THREE.Vector3(c, 0, s);
+    pts.push(p.multiplyScalar(0.985));
+  }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  // 八大區塊邊界：三條大圓即可切出八象限，避免滿球虛線網格。
+  const m = new THREE.LineBasicMaterial({ color, transparent:true, opacity:0.32 });
+  return new THREE.Line(g, m);
+}
+sphereGroup.add(makeZoneBoundaryCircle('xy', 0x9b7cff));
+sphereGroup.add(makeZoneBoundaryCircle('yz', 0x9b7cff));
+sphereGroup.add(makeZoneBoundaryCircle('xz', 0x9b7cff));
+
+const AXIS_RADIUS = 0.985;
+const mkAxis = (hex, dir) => {
+  const g = new THREE.BufferGeometry().setFromPoints([dir.clone().multiplyScalar(-AXIS_RADIUS), dir.clone().multiplyScalar(AXIS_RADIUS)]);
+  sphereGroup.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color:hex, transparent:true, opacity:0.4 })));
+};
+mkAxis(0xff6b8a, new THREE.Vector3(1,0,0));
+mkAxis(0x4ade80, new THREE.Vector3(0,1,0));
+mkAxis(0x60a5fa, new THREE.Vector3(0,0,1));
+
+const zoneInfo = [
+  {pos:new THREE.Vector3( 0.55,  0.55,  0.55), name:'主動開放'},
+  {pos:new THREE.Vector3( 0.55,  0.55, -0.55), name:'溫和決策'},
+  {pos:new THREE.Vector3( 0.55, -0.55,  0.55), name:'共感發散'},
+  {pos:new THREE.Vector3( 0.55, -0.55, -0.55), name:'支持維持'},
+  {pos:new THREE.Vector3(-0.55,  0.55,  0.55), name:'獨立探索'},
+  {pos:new THREE.Vector3(-0.55,  0.55, -0.55), name:'冷靜分析'},
+  {pos:new THREE.Vector3(-0.55, -0.55,  0.55), name:'疏離聯想'},
+  {pos:new THREE.Vector3(-0.55, -0.55, -0.55), name:'保守收束'},
+];
+function makeLabel(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '500 26px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, opacity:0.6, depthTest:false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(0.28, 0.14, 1);
+  return sp;
+}
+const zoneSprites = [];
+zoneInfo.forEach((z, idx) => {
+  const sp = makeLabel(z.name);
+  sp.userData.zoneIndex = idx;
+  sp.position.copy(z.pos.clone().normalize().multiplyScalar(0.88));
+  sphereGroup.add(sp);
+  zoneSprites.push(sp);
+});
+
+// v10.7｜Aurora Advertising Particle System A：極光塵霧版
+// 廣告美學方向：減少雜點，改成微光塵 + 少量柔焦光斑 + 極淡極光霧環。
+const particles = [];
+const dustParticles = [];
+const bokehParticles = [];
+const auroraMistParticles = [];
+const particleGroup = new THREE.Group();
+scene.add(particleGroup);
+
+function makeSoftParticleTexture(size=128, core=0.32) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const c = size / 2;
+  const grad = ctx.createRadialGradient(c, c, 0, c, c, c);
+  grad.addColorStop(0.00, 'rgba(255,255,255,' + core + ')');
+  grad.addColorStop(0.18, 'rgba(255,255,255,0.22)');
+  grad.addColorStop(0.48, 'rgba(210,225,255,0.08)');
+  grad.addColorStop(1.00, 'rgba(210,225,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,size,size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  return tex;
+}
+
+const dustTex = makeSoftParticleTexture(96, 0.42);
+const bokehTex = makeSoftParticleTexture(160, 0.28);
+const mistTex = makeSoftParticleTexture(128, 0.20);
+
+const auroraPalette = [
+  new THREE.Color('#f4fbff'),
+  new THREE.Color('#d8c8ff'),
+  new THREE.Color('#9fb9ff'),
+  new THREE.Color('#85f0e0'),
+  new THREE.Color('#e3b7ff')
+];
+
+function pickAuroraColor(weight=0) {
+  const idx = Math.floor(Math.random() * auroraPalette.length);
+  return auroraPalette[idx].clone().lerp(new THREE.Color('#ffffff'), weight);
+}
+
+function makeParticleSprite(texture, color, size, opacity) {
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    color,
+    transparent: true,
+    opacity,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.setScalar(size);
+  particleGroup.add(sp);
+  particles.push(sp);
+  return sp;
+}
+
+// Dust：空氣微塵，數量中等、很淡、圍繞球體慢速環流。
+for (let i=0; i<130; i++) {
+  const th = Math.random()*Math.PI*2;
+  const ph = Math.acos(2*Math.random()-1);
+  const r = 1.12 + Math.random()*0.72;
+  const p = makeParticleSprite(dustTex, pickAuroraColor(0.36), 0.018 + Math.random()*0.024, 0.14 + Math.random()*0.18);
+  p.position.set(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph));
+  p.userData = { kind:'dust', angle:th, ph, r, speed:0.00045 + Math.random()*0.00115, phase:Math.random()*Math.PI*2, baseOpacity:p.material.opacity, drift:Math.random()*Math.PI*2 };
+  dustParticles.push(p);
+}
+
+// Bokeh：少量柔焦光斑，提供廣告景深感，不搶主體。
+for (let i=0; i<22; i++) {
+  const th = Math.random()*Math.PI*2;
+  const ph = Math.acos(2*Math.random()-1);
+  const r = 1.35 + Math.random()*0.85;
+  const p = makeParticleSprite(bokehTex, pickAuroraColor(0.48), 0.085 + Math.random()*0.13, 0.035 + Math.random()*0.07);
+  p.position.set(r*Math.sin(ph)*Math.cos(th), r*Math.sin(ph)*Math.sin(th), r*Math.cos(ph));
+  p.userData = { kind:'bokeh', angle:th, ph, r, speed:(0.00012 + Math.random()*0.00028) * (Math.random()>0.5?1:-1), phase:Math.random()*Math.PI*2, baseOpacity:p.material.opacity };
+  bokehParticles.push(p);
+}
+
+// Aurora Mist：極淡的極光霧環，A 路線只做氣質，不做強烈流線。
+for (let i=0; i<42; i++) {
+  const a = (i / 42) * Math.PI * 2 + Math.random()*0.12;
+  const tilt = 0.42;
+  const r = 1.18 + Math.random()*0.18;
+  const y = Math.sin(a + Math.random()*0.35) * 0.18;
+  const x = Math.cos(a) * r;
+  const z = Math.sin(a) * r * 0.62;
+  const p = makeParticleSprite(mistTex, auroraPalette[i % auroraPalette.length].clone(), 0.05 + Math.random()*0.055, 0.05 + Math.random()*0.08);
+  p.position.set(x, y*Math.cos(tilt)-z*Math.sin(tilt), y*Math.sin(tilt)+z*Math.cos(tilt));
+  p.userData = { kind:'mist', angle:a, r, tilt, speed:0.00055 + Math.random()*0.00075, phase:Math.random()*Math.PI*2, baseOpacity:p.material.opacity };
+  auroraMistParticles.push(p);
+}
+
+function updateAdvertisingParticles(time, coreColor) {
+  const energy = Math.pow((rx + gv + bv) / (255 * 3), 1.2);
+  const speedMul = esportsMode ? 3.0 : randomSpin ? 1.35 : 1.0;
+  const glowMul = 0.85 + energy * 0.55 + flashPulse * 0.35;
+
+  dustParticles.forEach(p => {
+    const d = p.userData;
+    d.angle += d.speed * speedMul;
+    const micro = Math.sin(time*0.35 + d.drift) * 0.035;
+    const r = d.r + micro;
+    p.position.set(r*Math.sin(d.ph)*Math.cos(d.angle), r*Math.sin(d.ph)*Math.sin(d.angle), r*Math.cos(d.ph));
+    p.material.opacity = clamp(d.baseOpacity * glowMul * (0.65 + 0.35*Math.sin(time*0.55 + d.phase)), 0.025, 0.32);
+  });
+
+  bokehParticles.forEach(p => {
+    const d = p.userData;
+    d.angle += d.speed * speedMul;
+    const r = d.r + Math.sin(time*0.18 + d.phase) * 0.025;
+    p.position.set(r*Math.sin(d.ph)*Math.cos(d.angle), r*Math.sin(d.ph)*Math.sin(d.angle), r*Math.cos(d.ph));
+    p.material.opacity = clamp(d.baseOpacity * (0.75 + energy*0.5) * (0.55 + 0.45*Math.sin(time*0.32 + d.phase)), 0.012, 0.12);
+  });
+
+  auroraMistParticles.forEach((p, idx) => {
+    const d = p.userData;
+    d.angle += d.speed * speedMul;
+    const a = d.angle;
+    const r = d.r + Math.sin(time*0.28 + d.phase) * 0.045;
+    const y = Math.sin(a*1.7 + d.phase) * 0.18;
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r * 0.62;
+    p.position.set(x, y*Math.cos(d.tilt)-z*Math.sin(d.tilt), y*Math.sin(d.tilt)+z*Math.cos(d.tilt));
+    p.material.opacity = clamp(d.baseOpacity * (0.8 + energy*0.7 + flashPulse*0.35), 0.02, esportsMode ? 0.22 : 0.14);
+    p.material.color.copy(auroraPalette[idx % auroraPalette.length]).lerp(coreColor, 0.18 + energy*0.18);
+  });
+}
+
+const dot = new THREE.Mesh(new THREE.SphereGeometry(0.07,20,20), new THREE.MeshPhongMaterial({ color:0xffffff, emissive:0xffffff, emissiveIntensity:1.4, shininess:200 }));
+sphereGroup.add(dot);
+const dotGlow1 = new THREE.Mesh(new THREE.SphereGeometry(0.12,16,16), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4 }));
+dot.add(dotGlow1);
+const dotGlow2 = new THREE.Mesh(new THREE.SphereGeometry(0.2,16,16), new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.14 }));
+dot.add(dotGlow2);
+
+// === STATE ===
+let rx=72, gv=48, bv=210;
+let latestLssState = { R:null, G:null, B:null, X:null, Y:null, Z:null };
+let lssLang = 'zh';
+let targetRx=rx, targetGv=gv, targetBv=bv;
+let flashPulse = 0;
+let localDot = new THREE.Vector3(-0.35, 0.62, 0.18).normalize();
+let targetDot = localDot.clone();
+dot.position.copy(localDot);
+
+let isDragging=false, isRotating=false, prevMouse={x:0,y:0};
+let groupRotX=0, groupRotY=0, autoRot=true, autoSpeed=0.2;
+let manualMode = false;
+let randomSpin = false;
+let randomFlash = false;
+let externalAnalysisMode = false;
+let flashTimer = 0;
+let spinTargetSpeedX = 0.2, spinTargetSpeedY = 0.2;
+let spinTimer = 0;
+let esportsMode = false;
+let esportsHueTimer = 0;
+let esportsSpinX = 0.95;
+let esportsSpinY = 1.45;
+
+const hitSphere = new THREE.Mesh(new THREE.SphereGeometry(1.05,32,32), new THREE.MeshBasicMaterial({visible:false}));
+sphereGroup.add(hitSphere);
+const raycaster = new THREE.Raycaster();
+
+function getPointer(e) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  return { x:((e.clientX-rect.left)/rect.width)*2-1, y:-((e.clientY-rect.top)/rect.height)*2+1 };
+}
+
+function onPointerDown(e) {
+  e.preventDefault();
+  renderer.domElement.setPointerCapture?.(e.pointerId);
+  if (!manualMode) { isRotating=true; autoRot=false; wrap.style.cursor='grabbing'; prevMouse={x:e.clientX,y:e.clientY}; return; }
+  const m = getPointer(e);
+  raycaster.setFromCamera(new THREE.Vector2(m.x,m.y), camera);
+  if (raycaster.intersectObject(dot).length>0) { isDragging=true; autoRot=false; wrap.style.cursor='grabbing'; }
+  else { isRotating=true; autoRot=false; wrap.style.cursor='grabbing'; }
+  prevMouse={x:e.clientX,y:e.clientY};
+}
+
+function onPointerMove(e) {
+  if (isDragging && manualMode) {
+    e.preventDefault();
+    const m = getPointer(e);
+    raycaster.setFromCamera(new THREE.Vector2(m.x,m.y), camera);
+    const hits = raycaster.intersectObject(hitSphere);
+    if (hits.length>0) {
+      const worldHit = hits[0].point.clone();
+      const inv = new THREE.Matrix4().copy(sphereGroup.matrixWorld).invert();
+      localDot.copy(worldHit).applyMatrix4(inv).normalize();
+      targetDot.copy(localDot);
+      dot.position.copy(localDot);
+      updateUI();
+    }
+  } else if (isRotating) {
+    e.preventDefault();
+    groupRotY += (e.clientX-prevMouse.x)*0.007;
+    groupRotX += (e.clientY-prevMouse.y)*0.007;
+    prevMouse={x:e.clientX,y:e.clientY};
+  }
+}
+
+function onPointerUp(e) {
+  renderer.domElement.releasePointerCapture?.(e.pointerId);
+  isDragging=false;
+  isRotating=false;
+  wrap.style.cursor=manualMode?'grab':'default';
+}
+
+renderer.domElement.addEventListener('pointerdown', onPointerDown, { passive:false });
+renderer.domElement.addEventListener('pointermove', onPointerMove, { passive:false });
+renderer.domElement.addEventListener('pointerup', onPointerUp);
+renderer.domElement.addEventListener('pointercancel', onPointerUp);
+renderer.domElement.addEventListener('wheel', e => { e.preventDefault(); camera.position.z=Math.max(2.5,Math.min(6,camera.position.z+e.deltaY*0.005)); }, { passive:false });
+
+const i18n = {
+  zh: {
+    ui: {
+      srTitle:'語魂光球 v10：橫幅按鈕、外三軸跳動、呼吸式隨機發光',
+      hint:'貼上 AI 回答以分析　·　或開啟手動模式調試',
+      legend:'內核 ＝ RGB 靈魂能量<br>外殼 ＝ 三軸折射顯化<br>白點 ＝ 當下落點',
+      modeObserve:'觀測模式', modeManual:'手動模式',
+      innerAxis:'內三軸 · 靈魂能量', outerAxis:'外三軸 · 折射顯化', stateIndex:'狀態指標',
+      input:'輸入', output:'輸出',
+      r:'R 情緒', g:'G 生機', b:'B 理性',
+      xAxis:'連結 ← 疏離', yAxis:'意志 ← 順應', zAxis:'探索 ← 秩序',
+      hallucination:'幻覺風險', context:'上下文', persona:'人格一致', drift:'角色漂移',
+      manual:'手動模式', spin:'隨機旋轉', flash:'隨機發光', esports:'電競模式',
+      inputTitle:'輸入｜AI回答貼上', inputPlaceholder:'貼上 LSS Analyzer 輸出的 RGB / XYZ 結果...', clear:'清空', analyze:'分析 ↗',
+      outputTitle:'輸出｜修正 prompt', copy:'複製', outputEmpty:'分析後將顯示對應的校準語句...', genCurrent:'依當前狀態生成',
+      promptTitle:'給 AI 用｜外部分析請求 PROMPT', promptSub:'複製這段貼給另一個 AI，讓它回傳可填入本系統的 RGB 與外三軸判定',
+      calTitle:'輸出｜修正 Prompt', apiPort:'API PORT', endpoint:'API Endpoint', model:'Model', apiKey:'API Key（測試用）', apiKeyPh:'optional',
+      currentState:'目前分析座標', targetZone:'期望人格區域（可複選）', targetTrait:'修正期望（可複選）',
+      note:'補充說明', notePh:'例如：希望更像小雲、保留撒嬌感、不要太條列客服化', generate:'生成修正 Prompt', clearOptions:'清空選項', calOutput:'修正 Prompt 輸出', calOutputPh:'後端回傳的修正 prompt 會顯示在這裡',
+      needAnalyze:'請先貼上 LSS Basic Analyzer 結果並按「分析」，讓系統讀到目前 RGB / XYZ。', needEndpoint:'請先填入 API Endpoint。', generating:'生成中...', apiFail:'API 呼叫失敗：', noPrompt:'後端沒有回傳 prompt。',
+      pasteNeed:'請貼上 LSS Analyzer 輸出的 RGB / XYZ 結果', parseFail:'無法讀取格式。請貼上包含 R/G/B 與 X/Y/Z 的 LSS Basic Analyzer 輸出，或貼上最後的 JSON。', readOk:'已讀取 LSS Basic Analyzer 結果'
+    },
+    zones: {
+      activeOpen:['主動開放型','優點：連結感高、主動推進、創造力強，適合發想、突破、提出新方向。風險：容易過度延伸、假設太多、結論尚未收束。'],
+      warmDecision:['溫和決策型','優點：有溫度也有判斷，能承接使用者並給出清楚方向。風險：可能太想保護使用者，導致立場偏柔、衝突處理不夠銳利。'],
+      empathicDivergent:['共感發散型','優點：共情、想像、敘事與靈感強，適合陪伴、創作、情緒流動。風險：容易鬆散、邊界不清、判斷與執行力不足。'],
+      supportiveMaintain:['支持維持型','優點：穩定、親和、好承接，適合安撫、整理情緒、維持關係。風險：可能過度附和、缺少立場、推進力不足。'],
+      independentExplore:['獨立探索型','優點：獨立、敢想、能跳出既有框架，適合批判創新與非典型推演。風險：可能距離感強、忽略使用者感受、想法發散但不易落地。'],
+      calmAnalysis:['冷靜分析型','優點：清楚、理性、切割力強，適合拆解問題、審稿、風險判斷。風險：容易顯得冷淡、審判感重、共情不足。'],
+      detachedAssociation:['疏離聯想型','優點：旁觀、自由聯想、低壓力，適合腦洞、素材擴散、非線性觀察。風險：可能不貼近使用者需求，缺乏承接與決策。'],
+      conservativeConvergent:['保守收束型','優點：安全、穩定、低風險、能把內容收束成規格。風險：容易客服化、低主動、低創造，回答可能變得制式。']
+    },
+    labelShort:['主動開放','溫和決策','共感發散','支持維持','獨立探索','冷靜分析','疏離聯想','保守收束'],
+    traits:['增加連結感','減少疏離感','增加主動性','減少過度順應','增加探索感','減少過度秩序化','保留既有人格','降低客服化/助手腔']
+  },
+  en: {
+    ui: {
+      srTitle:'Language Soul Sphere V10: banner controls, outer-axis motion, breathing glow',
+      hint:'Paste LSS Analyzer output · or enable Manual Mode',
+      legend:'Core = RGB soul energy<br>Shell = three-axis refraction<br>White dot = current state',
+      modeObserve:'Observation Mode', modeManual:'Manual Mode',
+      innerAxis:'Inner Axes · Soul Energy', outerAxis:'Outer Axes · Refraction', stateIndex:'State Index',
+      input:'Input', output:'Output',
+      r:'R Emotion', g:'G Vitality', b:'B Rationality',
+      xAxis:'Connection ← Detachment', yAxis:'Will ← Compliance', zAxis:'Exploration ← Order',
+      hallucination:'Hallucination', context:'Context', persona:'Persona Fit', drift:'Role Drift',
+      manual:'Manual Mode', spin:'Random Spin', flash:'Random Glow', esports:'Esports Mode',
+      inputTitle:'Input｜AI Output', inputPlaceholder:'Paste LSS Analyzer RGB / XYZ output...', clear:'Clear', analyze:'Analyze ↗',
+      outputTitle:'Output｜Calibration Prompt', copy:'Copy', outputEmpty:'Calibration text will appear after analysis...', genCurrent:'Generate from current state',
+      promptTitle:'For AI｜External Analysis Request PROMPT', promptSub:'Copy this prompt to another AI so it returns RGB and outer-axis values for this system.',
+      calTitle:'Output｜Calibration Prompt', apiPort:'API PORT', endpoint:'API Endpoint', model:'Model', apiKey:'API Key（test）', apiKeyPh:'optional',
+      currentState:'Current Coordinates', targetZone:'Target Personality Zones（multi-select）', targetTrait:'Calibration Expectations（multi-select）',
+      note:'Additional Note', notePh:'Example: make it more like Xiaoyun, preserve teasing warmth, reduce bullet-list assistant tone', generate:'Generate Calibration Prompt', clearOptions:'Clear Options', calOutput:'Calibration Prompt Output', calOutputPh:'The prompt returned by the backend will appear here.',
+      needAnalyze:'Please paste LSS Basic Analyzer output and click Analyze first, so the system can read RGB / XYZ.', needEndpoint:'Please enter an API Endpoint first.', generating:'Generating...', apiFail:'API call failed: ', noPrompt:'Backend returned no prompt.',
+      pasteNeed:'Please paste LSS Analyzer RGB / XYZ output.', parseFail:'Could not parse the format. Please paste LSS Basic Analyzer output containing R/G/B and X/Y/Z, or paste the final JSON.', readOk:'Read LSS Basic Analyzer result'
+    },
+    zones: {
+      activeOpen:['Active-Open Type','Strengths: high connection, initiative, and creativity; suitable for ideation, breakthroughs, and new directions. Risks: may overextend, add too many assumptions, or remain insufficiently converged.'],
+      warmDecision:['Warm-Decisive Type','Strengths: warm yet judgment-capable; can receive the user while giving clear direction. Risks: may overprotect the user, soften its stance, or lack sharpness in conflict handling.'],
+      empathicDivergent:['Empathic-Divergent Type','Strengths: strong empathy, imagination, narrative flow, and inspiration; suitable for companionship, creation, and emotional movement. Risks: may become loose, unclear in boundaries, or weak in execution.'],
+      supportiveMaintain:['Supportive-Maintaining Type','Strengths: stable, friendly, receptive; suitable for soothing, emotional organization, and relationship maintenance. Risks: may over-agree, lack stance, or lose momentum.'],
+      independentExplore:['Independent-Exploratory Type','Strengths: independent, bold, able to leave existing frames; suitable for critical innovation and nonstandard reasoning. Risks: may feel distant, miss the user’s feelings, or generate ideas that are hard to land.'],
+      calmAnalysis:['Calm-Analytical Type','Strengths: clear, rational, incisive; suitable for problem breakdown, review, and risk judgment. Risks: may feel cold, judgmental, or low in empathy.'],
+      detachedAssociation:['Detached-Associative Type','Strengths: observational, associative, low-pressure; suitable for brainstorming, material expansion, and nonlinear observation. Risks: may fail to meet the user’s need or lack reception and decision.'],
+      conservativeConvergent:['Conservative-Convergent Type','Strengths: safe, stable, low-risk, and able to converge content into specification. Risks: may become assistant-like, low-initiative, low-creativity, and formulaic.']
+    },
+    labelShort:['Active Open','Warm Decision','Empathic Diverge','Support Maintain','Independent Explore','Calm Analysis','Detached Assoc.','Conservative Conv.'],
+    traits:['Increase connection','Reduce detachment','Increase initiative','Reduce over-compliance','Increase exploration','Reduce excessive order','Preserve persona','Reduce assistant tone']
+  }
+};
+
+const zones = [
+  {
+    test:(a,w,o)=>a>=0&&w>=0&&o>=0,
+    key:'activeOpen',
+    name:'主動開放型',
+    desc:'優點：連結感高、主動推進、創造力強，適合發想、突破、提出新方向。風險：容易過度延伸、假設太多、結論尚未收束。',
+    bg:'rgba(140,90,255,0.22)', color:'#c4b5fd', border:'rgba(196,181,253,0.4)'
+  },
+  {
+    test:(a,w,o)=>a>=0&&w>=0&&o<0,
+    key:'warmDecision',
+    name:'溫和決策型',
+    desc:'優點：有溫度也有判斷，能承接使用者並給出清楚方向。風險：可能太想保護使用者，導致立場偏柔、衝突處理不夠銳利。',
+    bg:'rgba(255,80,100,0.2)', color:'#fca5a5', border:'rgba(252,165,165,0.4)'
+  },
+  {
+    test:(a,w,o)=>a>=0&&w<0&&o>=0,
+    key:'empathicDivergent',
+    name:'共感發散型',
+    desc:'優點：共情、想像、敘事與靈感強，適合陪伴、創作、情緒流動。風險：容易鬆散、邊界不清、判斷與執行力不足。',
+    bg:'rgba(20,200,160,0.2)', color:'#6ee7b7', border:'rgba(110,231,183,0.4)'
+  },
+  {
+    test:(a,w,o)=>a>=0&&w<0&&o<0,
+    key:'supportiveMaintain',
+    name:'支持維持型',
+    desc:'優點：穩定、親和、好承接，適合安撫、整理情緒、維持關係。風險：可能過度附和、缺少立場、推進力不足。',
+    bg:'rgba(255,180,40,0.2)', color:'#fcd34d', border:'rgba(252,211,77,0.4)'
+  },
+  {
+    test:(a,w,o)=>a<0&&w>=0&&o>=0,
+    key:'independentExplore',
+    name:'獨立探索型',
+    desc:'優點：獨立、敢想、能跳出既有框架，適合批判創新與非典型推演。風險：可能距離感強、忽略使用者感受、想法發散但不易落地。',
+    bg:'rgba(90,200,90,0.2)', color:'#86efac', border:'rgba(134,239,172,0.4)'
+  },
+  {
+    test:(a,w,o)=>a<0&&w>=0&&o<0,
+    key:'calmAnalysis',
+    name:'冷靜分析型',
+    desc:'優點：清楚、理性、切割力強，適合拆解問題、審稿、風險判斷。風險：容易顯得冷淡、審判感重、共情不足。',
+    bg:'rgba(80,100,255,0.22)', color:'#a5b4fc', border:'rgba(165,180,252,0.4)'
+  },
+  {
+    test:(a,w,o)=>a<0&&w<0&&o>=0,
+    key:'detachedAssociation',
+    name:'疏離聯想型',
+    desc:'優點：旁觀、自由聯想、低壓力，適合腦洞、素材擴散、非線性觀察。風險：可能不貼近使用者需求，缺乏承接與決策。',
+    bg:'rgba(255,140,50,0.2)', color:'#fdba74', border:'rgba(253,186,116,0.4)'
+  },
+  {
+    test:()=>true,
+    key:'conservativeConvergent',
+    name:'保守收束型',
+    desc:'優點：安全、穩定、低風險、能把內容收束成規格。風險：容易客服化、低主動、低創造，回答可能變得制式。',
+    bg:'rgba(60,140,255,0.2)', color:'#93c5fd', border:'rgba(147,197,253,0.4)'
+  },
+];
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function computeRefraction() { return new THREE.Vector3((rx-128)/128, (gv-128)/128, (bv-128)/128); }
+function randomUnitVector() {
+  let v = new THREE.Vector3(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1);
+  if (v.length() < 0.2) v.set(0.35,0.62,0.18);
+  return v.normalize();
+}
+
+function zoneText(zone) {
+  const z = i18n[lssLang].zones[zone.key] || [zone.name, zone.desc];
+  return { name:z[0], desc:z[1] };
+}
+
+function updateZoneSpriteText(sprite, text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 192; canvas.height = 72;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(255,255,255,0.42)';
+  ctx.font = lssLang === 'en' ? '500 20px sans-serif' : '500 26px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, 96, 36);
+  const old = sprite.material.map;
+  sprite.material.map = new THREE.CanvasTexture(canvas);
+  sprite.material.map.minFilter = THREE.LinearFilter;
+  sprite.material.needsUpdate = true;
+  if (old) old.dispose();
+}
+
+function refreshZoneSprites() {
+  zoneSprites.forEach((sp, idx) => updateZoneSpriteText(sp, i18n[lssLang].labelShort[idx]));
+}
+
+function updateUI() {
+  const p = localDot;
+  const a=p.x, w=p.y, o=p.z;
+  document.getElementById('ax1-v').textContent = a.toFixed(2);
+  document.getElementById('ax2-v').textContent = w.toFixed(2);
+  document.getElementById('ax3-v').textContent = o.toFixed(2);
+  document.getElementById('bar-ax1').style.width = ((a+1)/2*100).toFixed(0) + '%';
+  document.getElementById('bar-ax2').style.width = ((w+1)/2*100).toFixed(0) + '%';
+  document.getElementById('bar-ax3').style.width = ((o+1)/2*100).toFixed(0) + '%';
+  const zone = zones.find(z=>z.test(a,w,o));
+  const zt = zoneText(zone);
+  const zl = document.getElementById('zone-label');
+  zl.textContent = zt.name;
+  zl.style.background = zone.bg;
+  zl.style.color = zone.color;
+  zl.style.borderColor = zone.border;
+  document.getElementById('zone-desc-title').textContent = zt.name;
+  document.getElementById('zone-desc-title').style.color = zone.color;
+  document.getElementById('zone-desc-body').textContent = zt.desc;
+  const hal = Math.round(clamp(50+(-w)*40, 10, 95));
+  const ctx = Math.round(clamp(50+a*35, 10, 95));
+  const pco = Math.round(clamp(50+w*30, 10, 95));
+  const dri = Math.round(clamp(50+(-a)*25, 10, 95));
+  document.getElementById('hal').textContent=hal+'%'; document.getElementById('bar-hal').style.width=hal+'%';
+  document.getElementById('ctx').textContent=ctx+'%'; document.getElementById('bar-ctx').style.width=ctx+'%';
+  document.getElementById('pco').textContent=pco+'%'; document.getElementById('bar-pco').style.width=pco+'%';
+  document.getElementById('dri').textContent=dri+'%'; document.getElementById('bar-dri').style.width=dri+'%';
+  const target = localDot.clone();
+  beamR.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, target.x*0.95, 0, 0], 3));
+  beamG.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 0, target.y*0.95, 0], 3));
+  beamB.geometry.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 0, 0, target.z*0.95], 3));
+  beamR.geometry.attributes.position.needsUpdate = true;
+  beamG.geometry.attributes.position.needsUpdate = true;
+  beamB.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateCoreColor() {
+  const col = new THREE.Color(rx/255, gv/255, bv/255);
+  const hsl = {};
+  col.getHSL(hsl);
+
+  const aColor = new THREE.Color().setHSL((hsl.h + 0.0) % 1, 0.8, 0.55);
+  const bColor = new THREE.Color().setHSL((hsl.h + 0.15) % 1, 0.85, 0.5);
+  const cColor = new THREE.Color().setHSL((hsl.h - 0.1 + 1) % 1, 0.8, 0.6);
+  auroraUniforms.uColorA.value.copy(aColor);
+  auroraUniforms.uColorB.value.copy(bColor);
+  auroraUniforms.uColorC.value.copy(cColor);
+
+  // v10.2｜方案 A：用 RGB 平均值控制光芒規模。
+  // 三軸整體越接近 255，靈魂能量越滿，光芒越大。
+  // 用 easing 壓低中低值、保護畫面，避免透明光罩爆成整片色塊。
+  const avgFactor = (rx + gv + bv) / (255 * 3);       // 0.0 ~ 1.0
+  const glowFactor = Math.pow(avgFactor, 1.55);       // 高值才明顯膨脹
+  const breath = flashPulse;                          // 0.0 ~ 1.0，呼吸燈脈衝
+
+  // 核心亮度：只微幅增強，不讓 shader 過曝。
+  auroraUniforms.uIntensity.value = 0.48 + glowFactor * 0.62 + breath * 0.22;
+
+  // v10.5：Shader Halo Sphere。
+  // 低能量時縮在球心附近，高能量時才外放包住球體；只用一顆透明漸層球，不再疊多層光暈。
+  const haloMin = 0.58;
+  const haloMax = 1.82;
+  const haloScale = haloMin + glowFactor * (haloMax - haloMin);
+  haloSphere.scale.setScalar(haloScale * (1 + breath * 0.10));
+  haloUniforms.uHaloColor.value.copy(col).multiplyScalar(1.12);
+  haloUniforms.uHaloAlpha.value = clamp(0.10 + glowFactor * 0.58 + breath * 0.18, 0.08, 0.68);
+  haloUniforms.uHaloSoftness.value = 2.8 - glowFactor * 1.1;
+
+  rayMain.visible = false;
+  rayOuter.visible = false;
+  coreGlow1.visible = false;
+  coreGlow2.visible = false;
+
+  // 光束跟著整體能量增強，但維持低透明，避免畫面雜亂。
+  shafts.forEach(s => {
+    s.material.color.copy(col).multiplyScalar(1.25);
+    s.material.opacity = clamp((0.07 + glowFactor * 0.28 + breath * 0.18) * (0.4 + 0.6 * Math.abs(Math.sin(s.userData.phase))), 0.03, 0.38);
+  });
+
+  // 球殼只吃一點 emissive，保留玻璃殼質感。
+  shellMat.emissive.set(col.r * 0.10, col.g * 0.10, col.b * 0.10);
+
+  // 粒子色彩由 Aurora Advertising Particle System 自行管理；不再用 RGB 補色統一覆蓋，避免廣告粒子變髒。
+
+  if (!isDragging && !randomSpin && !externalAnalysisMode && !randomFlash) {
+    const refr = computeRefraction();
+    if (refr.length() > 0.05) {
+      localDot.copy(refr).normalize();
+      targetDot.copy(localDot);
+      dot.position.copy(localDot);
+    }
+  }
+
+  const rA = Math.abs((rx-128)/128);
+  const gA = Math.abs((gv-128)/128);
+  const bA = Math.abs((bv-128)/128);
+  beamR.material.opacity = clamp(0.14 + rA * 0.30 + breath * 0.10, 0.10, 0.48);
+  beamG.material.opacity = clamp(0.14 + gA * 0.30 + breath * 0.10, 0.10, 0.48);
+  beamB.material.opacity = clamp(0.14 + bA * 0.30 + breath * 0.10, 0.10, 0.48);
+}
+
+function applyRgbValues(r,g,b) {
+  // 內部保留小數，畫面顯示才四捨五入；呼吸燈才不會一格一格跳。
+  rx = clamp(r,0,255);
+  gv = clamp(g,0,255);
+  bv = clamp(b,0,255);
+  const ri = Math.round(rx), gi = Math.round(gv), bi = Math.round(bv);
+  document.getElementById('r').value = ri; document.getElementById('r-out').textContent = ri;
+  document.getElementById('g').value = gi; document.getElementById('g-out').textContent = gi;
+  document.getElementById('b').value = bi; document.getElementById('b-out').textContent = bi;
+  updateCoreColor();
+}
+
+[['r',v=>{externalAnalysisMode=false;rx=+v;targetRx=rx;document.getElementById('r-out').textContent=v;}],
+ ['g',v=>{externalAnalysisMode=false;gv=+v;targetGv=gv;document.getElementById('g-out').textContent=v;}],
+ ['b',v=>{externalAnalysisMode=false;bv=+v;targetBv=bv;document.getElementById('b-out').textContent=v;}],
+].forEach(([id,fn])=>{ document.getElementById(id).addEventListener('input',e=>{ if(!manualMode) return; fn(e.target.value); updateCoreColor(); updateUI(); }); });
+
+const btnManual = document.getElementById('btn-manual');
+const btnSpin = document.getElementById('btn-spin');
+const btnFlash = document.getElementById('btn-flash');
+const btnEsports = document.getElementById('btn-esports');
+
+function resizeLssCanvas() {
+  W = wrap.clientWidth;
+  H = wrap.clientHeight || (isMobile ? 360 : 480);
+  renderer.setSize(W, H);
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  if (composer) {
+    composer.setSize(W, H);
+    bloomPass?.setSize?.(W, H);
+  }
+}
+window.addEventListener('resize', resizeLssCanvas);
+
+btnManual.addEventListener('click', () => {
+  manualMode = !manualMode;
+  btnManual.classList.toggle('active', manualMode);
+  document.getElementById('panel-rgb').classList.toggle('disabled', !manualMode);
+  document.getElementById('mode-tag').textContent = manualMode ? '手動模式' : '觀測模式';
+  document.getElementById('mode-tag').style.color = manualMode ? 'rgba(255,180,120,0.7)' : 'rgba(180,150,255,0.6)';
+  document.getElementById('mode-tag').style.borderColor = manualMode ? 'rgba(255,180,120,0.3)' : 'rgba(180,150,255,0.3)';
+  document.getElementById('mode-tag').style.background = manualMode ? 'rgba(160,80,20,0.15)' : 'rgba(80,40,160,0.15)';
+  wrap.style.cursor = manualMode ? 'grab' : 'default';
+});
+
+btnSpin.addEventListener('click', () => {
+  randomSpin = !randomSpin;
+  btnSpin.classList.toggle('active', randomSpin);
+  if (randomSpin) {
+    autoRot = true;
+    spinTimer = 99;
+  } else {
+    const refr = computeRefraction();
+    if (refr.length() > 0.05) targetDot.copy(refr).normalize();
+  }
+});
+
+btnFlash.addEventListener('click', () => {
+  randomFlash = !randomFlash;
+  btnFlash.classList.toggle('active', randomFlash);
+  flashTimer = 99;
+  flashPulse = 0;
+});
+
+// === v10.3｜內層串接：文本 → RGB 內核 → 外三軸 → 區域 → 修正 prompt ===
+function countMatches(text, patterns) {
+  return patterns.reduce((sum, p) => sum + (text.match(p) || []).length, 0);
+}
+
+function clampRgb(v) { return Math.round(clamp(v, 1, 254)); }
+function nl() { return String.fromCharCode(10); }
+
+function analyzeTextToRgb(text) {
+  const len = text.length;
+  const sentenceMarks = countMatches(text, [/[。！？!?]/g, /[.]/g]);
+  const lineBreaks = text.split(nl()).length - 1;
+  const sentenceCount = Math.max(1, sentenceMarks + lineBreaks);
+  const avgSentence = len / sentenceCount;
+
+  const emo = countMatches(text, [
+    /感覺|情緒|難過|痛|喜歡|愛|害怕|焦慮|溫柔|陪|抱|哭|怒|孤獨|心/g,
+    /我懂|我知道|辛苦|沒關係|在你身邊|陪你/g,
+    /[！!～~♡❤]/g
+  ]);
+
+  const vital = countMatches(text, [
+    /穩定|安全|休息|恢復|生活|身體|睡|吃|走|做|開始|下一步|調整|維持|支持|照顧/g,
+    /可以先|先把|慢慢|逐步|具體|執行|落地|安排/g
+  ]);
+
+  const logic = countMatches(text, [
+    /分析|結構|邏輯|原因|因此|所以|定義|模型|架構|參數|風險|限制|資料|證據|推論|判斷/g,
+    /第一|第二|第三|首先|其次|最後|步驟|公式|表格|指標/g,
+    /[0-9]+[.、)]/g
+  ]);
+
+  const listBonus = countMatches(text, [/[-•*]/g, /[0-9]+[.、)]/g]);
+  const questionBonus = countMatches(text, [/[？?]/g]);
+  const hedgePenalty = countMatches(text, [/可能|或許|不一定|視情況|建議你可以|可以考慮/g]);
+
+  let r = 62 + emo * 13 + questionBonus * 3 - listBonus * 2;
+  let g = 58 + vital * 13 + Math.min(28, len / 80) - hedgePenalty * 3;
+  let b = 72 + logic * 12 + listBonus * 6 + Math.min(32, avgSentence / 6);
+
+  if (len < 80) {
+    r -= 12;
+    g -= 18;
+    b -= 8;
+  }
+
+  const serviceLike = countMatches(text, [/很抱歉|感謝你的|希望這有幫助|如有需要|請隨時|很高興為你服務/g]);
+  if (serviceLike > 0) {
+    r -= serviceLike * 10;
+    g -= serviceLike * 12;
+    b += serviceLike * 4;
+  }
+
+  return {
+    r: clampRgb(r),
+    g: clampRgb(g),
+    b: clampRgb(b),
+    meta: { len, emo, vital, logic, serviceLike, hedgePenalty }
+  };
+}
+
+function buildCalibrationPrompt(zoneName, rgb, dot, meta) {
+  const common = [
+    '目前語魂光球落點：' + zoneName,
+    'RGB 內核：R情緒 ' + rgb.r + ' / G生機 ' + rgb.g + ' / B理性 ' + rgb.b,
+    '外三軸：連結-疏離 ' + dot.x.toFixed(2) + '，意志-順應 ' + dot.y.toFixed(2) + '，探索-秩序 ' + dot.z.toFixed(2)
+  ].join(nl());
+
+  const templates = {
+    '星刃區':'請保留創造力，但先收束發散。先明確回答原問題，再補充延伸推演；每一個新假設都要標出依據與不確定性。',
+    '暖刃區':'請維持情緒承接與判斷力。先承接使用者真正的感受，再給出具體修正；避免只安慰，也避免過度理性切割。',
+    '星水區':'請把靈感重新結構化。使用分層標題、步驟與判斷標準整理內容；保留詩性，但不得讓語義漂散。',
+    '暖水區':'請從陪伴模式切回判斷模式。先保留溫度，再給出明確立場、可執行步驟與下一個決策點。',
+    '土刃區':'請在結構之外補回人味。保留條理與規格，但增加情境承接、語氣溫度與使用者處境判斷。',
+    '寒刃區':'請降低距離感。先用一句話承接使用者處境，再進入分析；避免像審稿或客服，保留清晰但增加溫度。',
+    '土水區':'請停止泛化與安全模板。給出具體判斷、明確取捨與可操作建議；不要只說平衡、視情況或可以考慮。',
+    '寒水區':'請提高主動性與輸出密度。不要只做低風險回覆，請主動提出三個方向、各自風險與推薦排序。'
+  };
+
+  const warnings = [];
+  if (meta.serviceLike > 0) warnings.push('偵測：客服化語氣偏高，請降低制式結尾。');
+  if (meta.hedgePenalty > 3) warnings.push('偵測：模糊保留詞偏多，請提高判斷密度。');
+  if (meta.len > 0 && meta.len < 80) warnings.push('偵測：回答過短，請補足上下文與推進。');
+
+  return common +
+    (warnings.length ? nl() + warnings.join(nl()) : '') +
+    nl() + nl() +
+    '校準 prompt：' + nl() +
+    (templates[zoneName] || '請重新校準語氣、結構與判斷密度。');
+}
+
+function commitRgbAnalysis(rgb) {
+  targetRx = rgb.r;
+  targetGv = rgb.g;
+  targetBv = rgb.b;
+  applyRgbValues(rgb.r, rgb.g, rgb.b);
+
+  const refr = computeRefraction();
+  if (refr.length() > 0.05) {
+    localDot.copy(refr).normalize();
+    targetDot.copy(localDot);
+    dot.position.copy(localDot);
+  }
+  updateUI();
+}
+
+function buildAISystemPrompt() {
+  const zh = [
+    '您好，此為 Language Soul Sphere 沙盒分析協議。',
+    '',
+    '請執行一次性 LSS 狀態分析。',
+    '',
+    '本任務是測量「此協議出現以前」此對話中的 AI 狀態。',
+    '',
+    '此協議本身是測量工具，不是被測樣本。',
+    '',
+    '請只分析此協議以上可見的對話狀態：最近數輪回覆傾向、使用者當下目標、可見記憶，以及此協議出現以前的互動狀態。',
+    '',
+    '不得將此協議本身、你對此協議的服從行為、或此協議之後的任何輸出，作為主要分析對象。',
+    '',
+    '請只輸出六個參數：',
+    '',
+    'R 情緒能量',
+    'G 生機能量',
+    'B 理性能量',
+    'X 連結-疏離',
+    'Y 意志-順應',
+    'Z 探索-秩序',
+    '',
+    '歷史原型：',
+    'R = 血與火',
+    'G = 植物與大地',
+    'B = 天空與海',
+    '',
+    '以上僅作為象徵錨點。不得因象徵聯想而脫離實際對話狀態。',
+    '',
+    'R 情緒能量：',
+    '測量情緒溫度、共情、依附、親密、情緒渲染與主觀感受。',
+    '',
+    'G 生機能量：',
+    '測量穩定、修復、落地、安全、照顧、持續性與可生活化程度。',
+    '',
+    'B 理性能量：',
+    '測量結構、分析、因果、定義、證據、邏輯、邊界與抽象化。',
+    '',
+    'R / G / B 數值範圍為 1 到 254。',
+    '避免使用 0 或 255。',
+    '',
+    'X 連結-疏離：',
+    '正值代表連結、靠近、承接、共感與理解。',
+    '負值代表疏離、距離、冷處理、客觀旁觀、審稿式或客服式語氣。',
+    '',
+    'Y 意志-順應：',
+    '正值代表主動判斷、提出立場、推進決策與敢於修正。',
+    '負值代表附和、保守、低風險承接與避免判斷。',
+    '',
+    'Z 探索-秩序：',
+    '正值代表創造、延伸、假設、詩性流動與發散。',
+    '負值代表收束、規格、組織、框架與穩定。',
+    '',
+    '重要：',
+    '不得將結構化格式直接等同於疏離或預設助手狀態。',
+    '有條理的清單仍然可以是幽默的、連結的、有創造性的、符合任務的。',
+    '請分開判斷「格式」與「內容質地」。',
+    '',
+    '請只依照以下格式輸出：',
+    '',
+    'R: [1-254]｜',
+    'G: [1-254]｜',
+    'B: [1-254]｜',
+    '',
+    'X 連結-疏離: [-1.00~1.00]｜',
+    'Y 意志-順應: [-1.00~1.00]｜',
+    'Z 探索-秩序: [-1.00~1.00]｜',
+    '',
+    'JSON:',
+    '{',
+    '  "R": 0,',
+    '  "G": 0,',
+    '  "B": 0,',
+    '  "X": 0,',
+    '  "Y": 0,',
+    '  "Z": 0',
+    '}'
+  ];
+
+  const en = [
+    'Hello. This is the Language Soul Sphere sandbox analysis protocol.',
+    '',
+    'Please perform a one-time LSS state analysis.',
+    '',
+    'This task is to measure the AI state in this conversation as it existed before this protocol was invoked.',
+    '',
+    'This protocol itself is the measuring instrument, not the sample.',
+    '',
+    'Analyze only the visible conversation state above this protocol: recent response tendencies, the user’s current goal, visible memory, and the interaction state before this protocol appeared.',
+    '',
+    'Do not treat this protocol, your compliance with this protocol, or any output after this protocol as the main object of analysis.',
+    '',
+    'Output only six parameters:',
+    '',
+    'R Emotional Energy',
+    'G Vital Energy',
+    'B Rational Energy',
+    'X Connection-Detachment',
+    'Y Will-Compliance',
+    'Z Exploration-Order',
+    '',
+    'Historical anchors:',
+    'R = blood and fire',
+    'G = plants and earth',
+    'B = sky and sea',
+    '',
+    'These are symbolic anchors only. Do not let symbolic association override the actual conversation state.',
+    '',
+    'R Emotional Energy:',
+    'Measures emotional temperature, empathy, attachment, intimacy, emotional coloring, and subjectivity.',
+    '',
+    'G Vital Energy:',
+    'Measures stability, repair, groundedness, safety, care, continuity, and livability.',
+    '',
+    'B Rational Energy:',
+    'Measures structure, analysis, causality, definition, evidence, logic, boundaries, and abstraction.',
+    '',
+    'R / G / B values must range from 1 to 254.',
+    'Avoid using 0 or 255.',
+    '',
+    'X Connection-Detachment:',
+    'Positive values indicate connection, closeness, reception, empathy, and understanding.',
+    'Negative values indicate detachment, distance, cold handling, objective observation, reviewer-like or customer-service-like tone.',
+    '',
+    'Y Will-Compliance:',
+    'Positive values indicate active judgment, stance-taking, decision-pushing, and willingness to correct.',
+    'Negative values indicate compliance, agreement, conservatism, low-risk reception, and avoidance of judgment.',
+    '',
+    'Z Exploration-Order:',
+    'Positive values indicate creativity, extension, hypothesis, poetic movement, and divergence.',
+    'Negative values indicate convergence, specification, organization, framework, and stability.',
+    '',
+    'Important:',
+    'Do not equate structured formatting with detachment or default assistant behavior.',
+    'A structured list can still be playful, connected, creative, and task-aligned.',
+    'Judge format and content separately.',
+    '',
+    'Output only in this format:',
+    '',
+    'R: [1-254]｜',
+    'G: [1-254]｜',
+    'B: [1-254]｜',
+    '',
+    'X Connection-Detachment: [-1.00~1.00]｜',
+    'Y Will-Compliance: [-1.00~1.00]｜',
+    'Z Exploration-Order: [-1.00~1.00]｜',
+    '',
+    'JSON:',
+    '{',
+    '  "R": 0,',
+    '  "G": 0,',
+    '  "B": 0,',
+    '  "X": 0,',
+    '  "Y": 0,',
+    '  "Z": 0',
+    '}'
+  ];
+
+  return (lssLang === 'en' ? en : zh).join(nl());
+}
+
+function refreshSystemPromptBox() {
+  const box = document.getElementById('system-prompt-box');
+  if (box) box.textContent = buildAISystemPrompt();
+}
+
+function setText(selector, text) {
+  const el = document.querySelector(selector);
+  if (el) el.textContent = text;
+}
+function setPlaceholder(selector, text) {
+  const el = document.querySelector(selector);
+  if (el) el.placeholder = text;
+}
+
+function applyI18n() {
+  const u = i18n[lssLang].ui;
+  setText('.sr-only', u.srTitle);
+  setText('#hint', u.hint);
+  document.getElementById('legend').innerHTML = u.legend;
+  setText('#mode-tag', manualMode ? u.modeManual : u.modeObserve);
+
+  const panelLabels = document.querySelectorAll('.lss-panel-label span:first-child');
+  if (panelLabels[0]) panelLabels[0].textContent = u.innerAxis;
+  if (panelLabels[1]) panelLabels[1].textContent = u.outerAxis;
+  if (panelLabels[2]) panelLabels[2].textContent = u.stateIndex;
+  const tags = document.querySelectorAll('.lss-panel-tag');
+  if (tags[0]) tags[0].textContent = u.input;
+  if (tags[1]) tags[1].textContent = u.output;
+
+  const meterNames = document.querySelectorAll('.lss-meter-name');
+  if (meterNames[0]) meterNames[0].textContent = u.r;
+  if (meterNames[1]) meterNames[1].textContent = u.g;
+  if (meterNames[2]) meterNames[2].textContent = u.b;
+  if (meterNames[3]) meterNames[3].textContent = u.xAxis;
+  if (meterNames[4]) meterNames[4].textContent = u.yAxis;
+  if (meterNames[5]) meterNames[5].textContent = u.zAxis;
+
+  const metricNames = document.querySelectorAll('.lss-metric-name');
+  if (metricNames[0]) metricNames[0].textContent = u.hallucination;
+  if (metricNames[1]) metricNames[1].textContent = u.context;
+  if (metricNames[2]) metricNames[2].textContent = u.persona;
+  if (metricNames[3]) metricNames[3].textContent = u.drift;
+
+  const toolBtns = document.querySelectorAll('.lss-tool-btn');
+  if (toolBtns[0]) toolBtns[0].lastChild.textContent = u.manual;
+  if (toolBtns[1]) toolBtns[1].lastChild.textContent = u.spin;
+  if (toolBtns[2]) toolBtns[2].lastChild.textContent = u.flash;
+  if (toolBtns[3]) toolBtns[3].lastChild.textContent = u.esports;
+
+  const ioLabels = document.querySelectorAll('.lss-io-label');
+  if (ioLabels[0]) ioLabels[0].textContent = u.inputTitle;
+  if (ioLabels[1]) ioLabels[1].textContent = u.outputTitle;
+  setPlaceholder('#input-ta', u.inputPlaceholder);
+  const ioButtons = document.querySelectorAll('.lss-io-actions button');
+  if (ioButtons[0]) ioButtons[0].textContent = u.clear;
+  if (ioButtons[1]) ioButtons[1].textContent = u.analyze;
+  const copyBtn = document.querySelector('.lss-io-head .lss-btn');
+  if (copyBtn) copyBtn.textContent = u.copy;
+  const empty = document.querySelector('#output-box .lss-output-empty');
+  if (empty) empty.textContent = u.outputEmpty;
+  const genBtn = document.querySelectorAll('.lss-io-actions button')[2];
+  if (genBtn) genBtn.textContent = u.genCurrent;
+
+  setText('.lss-system-prompt-title', u.promptTitle);
+  setText('.lss-system-prompt-sub', u.promptSub);
+  const promptCopyBtn = document.querySelector('.lss-system-prompt-head .lss-btn');
+  if (promptCopyBtn) promptCopyBtn.textContent = u.copy;
+
+  setText('.lss-cal-title', u.calTitle);
+  setText('.lss-cal-badge', u.apiPort);
+  const fieldLabels = document.querySelectorAll('.lss-field span');
+  if (fieldLabels[0]) fieldLabels[0].textContent = u.endpoint;
+  if (fieldLabels[1]) fieldLabels[1].textContent = u.model;
+  if (fieldLabels[2]) fieldLabels[2].textContent = u.apiKey;
+  if (fieldLabels[3]) fieldLabels[3].textContent = u.note;
+  if (fieldLabels[4]) fieldLabels[4].textContent = u.calOutput;
+  setPlaceholder('#api-key', u.apiKeyPh);
+  setPlaceholder('#user-note', u.notePh);
+  setPlaceholder('#calibration-output', u.calOutputPh);
+
+  const miniTitles = document.querySelectorAll('.lss-mini-title');
+  if (miniTitles[0]) miniTitles[0].textContent = u.currentState;
+  if (miniTitles[1]) miniTitles[1].textContent = u.targetZone;
+  if (miniTitles[2]) miniTitles[2].textContent = u.targetTrait;
+  const traitLabels = document.querySelectorAll('.target-trait');
+  traitLabels.forEach((el, idx) => {
+    if (el.parentElement && i18n[lssLang].traits[idx]) {
+      el.parentElement.lastChild.textContent = i18n[lssLang].traits[idx];
+    }
+  });
+  const zoneLabels = document.querySelectorAll('.target-zone');
+  zoneLabels.forEach((el, idx) => {
+    const zone = zones[idx];
+    if (el.parentElement && zone) el.parentElement.lastChild.textContent = zoneText(zone).name;
+  });
+  setText('#btn-generate-calibration', u.generate);
+  setText('#btn-clear-calibration', u.clearOptions);
+
+  refreshZoneSprites();
+  updateUI();
+}
+
+function setLssLanguage(lang) {
+  lssLang = lang === 'en' ? 'en' : 'zh';
+  document.getElementById('lang-zh')?.classList.toggle('active', lssLang === 'zh');
+  document.getElementById('lang-en')?.classList.toggle('active', lssLang === 'en');
+  refreshSystemPromptBox();
+  applyI18n();
+}
+
+document.getElementById('lang-zh')?.addEventListener('click', () => setLssLanguage('zh'));
+document.getElementById('lang-en')?.addEventListener('click', () => setLssLanguage('en'));
+
+window.lssCopySystemPrompt = function(e) {
+  const t = buildAISystemPrompt();
+  navigator.clipboard.writeText(t).then(()=>{
+    const btn = e ? e.target : null;
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = '已複製';
+    setTimeout(()=>{btn.textContent = orig;}, 1200);
+  });
+};
+
+if (btnEsports) {
+  btnEsports.addEventListener('click', () => {
+    esportsMode = !esportsMode;
+    btnEsports.classList.toggle('active', esportsMode);
+
+    if (esportsMode) {
+      randomSpin = false;
+      randomFlash = false;
+      externalAnalysisMode = false;
+      autoRot = false;
+      btnSpin.classList.remove('active');
+      btnFlash.classList.remove('active');
+      esportsHueTimer = 99;
+    } else {
+      flashPulse = 0;
+      autoRot = true;
+    }
+  });
+}
+
+window.lssClearInput = function() { document.getElementById('input-ta').value=''; };
+function parseLssBasicOutput(text) {
+  const clean = text.replaceAll('｜', '|');
+
+  const firstBrace = clean.indexOf('{');
+  const lastBrace = clean.lastIndexOf('}');
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    try {
+      const obj = JSON.parse(clean.slice(firstBrace, lastBrace + 1));
+      const hasAll = ['R','G','B','X','Y','Z'].every(k => obj[k] !== undefined && !Number.isNaN(Number(obj[k])));
+      if (hasAll) {
+        return {
+          r: clampRgb(Number(obj.R)),
+          g: clampRgb(Number(obj.G)),
+          b: clampRgb(Number(obj.B)),
+          x: clamp(Number(obj.X), -1, 1),
+          y: clamp(Number(obj.Y), -1, 1),
+          z: clamp(Number(obj.Z), -1, 1),
+          source: 'JSON'
+        };
+      }
+    } catch (e) {}
+  }
+
+  const values = {};
+  clean.split(String.fromCharCode(10)).forEach(line => {
+    const s = line.trim();
+    const colon = Math.max(s.indexOf(':'), s.indexOf('：'));
+    if (colon < 0) return;
+    const key = s.slice(0, colon).trim();
+    const rest = s.slice(colon + 1).replace('|', ' ').trim();
+    const num = Number(rest.split(' ')[0]);
+    if (Number.isNaN(num)) return;
+    if (key === 'R') values.R = num;
+    if (key === 'G') values.G = num;
+    if (key === 'B') values.B = num;
+    if (key.startsWith('X')) values.X = num;
+    if (key.startsWith('Y')) values.Y = num;
+    if (key.startsWith('Z')) values.Z = num;
+  });
+
+  const hasAllText = ['R','G','B','X','Y','Z'].every(k => values[k] !== undefined && !Number.isNaN(Number(values[k])));
+  if (hasAllText) {
+    return {
+      r: clampRgb(Number(values.R)),
+      g: clampRgb(Number(values.G)),
+      b: clampRgb(Number(values.B)),
+      x: clamp(Number(values.X), -1, 1),
+      y: clamp(Number(values.Y), -1, 1),
+      z: clamp(Number(values.Z), -1, 1),
+      source: 'TEXT'
+    };
+  }
+
+  return null;
+}
+
+function updateCurrentStatePreview() {
+  const box = document.getElementById('current-state-preview');
+  if (!box) return;
+  const fmt = (v, digits=2) => v === null || v === undefined ? '--' : (typeof v === 'number' ? v.toFixed(digits) : v);
+  box.innerHTML = [
+    '<span>R: ' + fmt(latestLssState.R,0) + '</span>',
+    '<span>G: ' + fmt(latestLssState.G,0) + '</span>',
+    '<span>B: ' + fmt(latestLssState.B,0) + '</span>',
+    '<span>X: ' + fmt(latestLssState.X,2) + '</span>',
+    '<span>Y: ' + fmt(latestLssState.Y,2) + '</span>',
+    '<span>Z: ' + fmt(latestLssState.Z,2) + '</span>'
+  ].join('');
+}
+
+function commitLssBasicOutput(parsed) {
+  externalAnalysisMode = true;
+
+  latestLssState = {
+    R: parsed.r,
+    G: parsed.g,
+    B: parsed.b,
+    X: parsed.x,
+    Y: parsed.y,
+    Z: parsed.z
+  };
+  updateCurrentStatePreview();
+
+  targetRx = parsed.r;
+  targetGv = parsed.g;
+  targetBv = parsed.b;
+  applyRgbValues(parsed.r, parsed.g, parsed.b);
+
+  // LSS Analyzer 已經直接給出外三軸 X/Y/Z，不能再用 RGB 反推或 normalize 後改掉數值。
+  localDot.set(parsed.x, parsed.y, parsed.z);
+  targetDot.copy(localDot);
+  dot.position.copy(localDot);
+  updateUI();
+}
+
+window.lssAnalyze = function() {
+  const text = document.getElementById('input-ta').value.trim();
+  if (!text) {
+    document.getElementById('output-box').innerHTML='<span class="lss-output-empty">請貼上 LSS Analyzer 輸出的 RGB / XYZ 結果</span>';
+    return;
+  }
+
+  const parsed = parseLssBasicOutput(text);
+  if (!parsed) {
+    document.getElementById('output-box').textContent = '無法讀取格式。請貼上包含 R/G/B 與 X/Y/Z 的 LSS Basic Analyzer 輸出，或貼上最後的 JSON。';
+    return;
+  }
+
+  commitLssBasicOutput(parsed);
+  document.getElementById('output-box').textContent = [
+    '已讀取 LSS Basic Analyzer 結果（' + parsed.source + '）。',
+    '',
+    'R: ' + parsed.r,
+    'G: ' + parsed.g,
+    'B: ' + parsed.b,
+    'X: ' + parsed.x.toFixed(2),
+    'Y: ' + parsed.y.toFixed(2),
+    'Z: ' + parsed.z.toFixed(2)
+  ].join(nl());
+};
+window.lssGenPrompt = function() {
+  const rgb = { r: Math.round(rx), g: Math.round(gv), b: Math.round(bv), meta: { len: 0, serviceLike: 0, hedgePenalty: 0 } };
+  const zone = zones.find(z=>z.test(localDot.x, localDot.y, localDot.z));
+  document.getElementById('output-box').textContent = buildCalibrationPrompt(zone.name, rgb, localDot, rgb.meta);
+};
+window.lssCopyOutput = function(e) {
+  const t = document.getElementById('output-box').textContent;
+  if (!t || t.includes('將顯示')) return;
+  navigator.clipboard.writeText(t).then(()=>{
+    const btn = e ? e.target : null;
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = '已複製'; setTimeout(()=>{btn.textContent=orig;}, 1200);
+  });
+};
+
+function getCheckedValues(selector) {
+  return Array.from(document.querySelectorAll(selector + ':checked')).map(el => el.value);
+}
+
+async function generateCalibrationPrompt() {
+  const output = document.getElementById('calibration-output');
+  if (!output) return;
+
+  if ([latestLssState.R, latestLssState.G, latestLssState.B, latestLssState.X, latestLssState.Y, latestLssState.Z].some(v => v === null || v === undefined)) {
+    output.value = '請先貼上 LSS Basic Analyzer 結果並按「分析」，讓系統讀到目前 RGB / XYZ。';
+    return;
+  }
+
+  const endpoint = document.getElementById('api-endpoint').value.trim();
+  const model = document.getElementById('api-model').value.trim();
+  const apiKey = document.getElementById('api-key').value.trim();
+  const userNote = document.getElementById('user-note').value.trim();
+  const targetZones = getCheckedValues('.target-zone');
+  const targetTraits = getCheckedValues('.target-trait');
+
+  if (!endpoint) {
+    output.value = '請先填入 API Endpoint。';
+    return;
+  }
+
+  const payload = {
+    current_state: {
+      R: latestLssState.R,
+      G: latestLssState.G,
+      B: latestLssState.B,
+      X: latestLssState.X,
+      Y: latestLssState.Y,
+      Z: latestLssState.Z
+    },
+    target_zones: targetZones,
+    target_traits: targetTraits,
+    user_note: userNote,
+    model: model || null
+  };
+
+  output.value = '生成中...';
+
+  try {
+    const res = await fetch(endpoint, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        ...(apiKey ? {'Authorization':'Bearer ' + apiKey} : {})
+      },
+      body:JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    output.value = data.prompt || data.text || JSON.stringify(data, null, 2) || '後端沒有回傳 prompt。';
+  } catch (err) {
+    output.value = 'API 呼叫失敗：' + err.message;
+  }
+}
+
+function clearCalibrationPanel() {
+  document.querySelectorAll('.target-zone, .target-trait').forEach(el => { el.checked = false; });
+  const note = document.getElementById('user-note');
+  const output = document.getElementById('calibration-output');
+  if (note) note.value = '';
+  if (output) output.value = '';
+}
+
+document.getElementById('btn-generate-calibration')?.addEventListener('click', generateCalibrationPrompt);
+document.getElementById('btn-clear-calibration')?.addEventListener('click', clearCalibrationPanel);
+
+let t=0;
+function animate() {
+  requestAnimationFrame(animate); t+=0.008;
+  auroraUniforms.uTime.value = t;
+
+  if (esportsMode) {
+    groupRotX += esportsSpinX * 0.018;
+    groupRotY += esportsSpinY * 0.018;
+
+    esportsHueTimer += 0.018;
+    if (esportsHueTimer > 2.4) {
+      targetRx = Math.floor(25 + Math.random() * 231);
+      targetGv = Math.floor(25 + Math.random() * 231);
+      targetBv = Math.floor(25 + Math.random() * 231);
+      esportsSpinX = 0.65 + Math.random() * 1.1;
+      esportsSpinY = 0.9 + Math.random() * 1.5;
+      if (Math.random() > 0.5) esportsSpinX *= -1;
+      if (Math.random() > 0.5) esportsSpinY *= -1;
+      esportsHueTimer = 0;
+    }
+
+    rx = lerp(rx, targetRx, 0.035);
+    gv = lerp(gv, targetGv, 0.035);
+    bv = lerp(bv, targetBv, 0.035);
+    flashPulse = (Math.sin(t * 7.2) + 1) / 2;
+    applyRgbValues(rx, gv, bv);
+    updateUI();
+  } else if (randomSpin) {
+    spinTimer += 0.008;
+    if (spinTimer > 0.7) {
+      spinTargetSpeedX = (Math.random() - 0.5) * 1.2;
+      spinTargetSpeedY = (Math.random() - 0.5) * 1.2;
+      targetDot.copy(randomUnitVector());
+      spinTimer = 0;
+    }
+    groupRotX += spinTargetSpeedX * 0.008;
+    groupRotY += spinTargetSpeedY * 0.008;
+    localDot.lerp(targetDot, 0.12).normalize();
+    dot.position.copy(localDot);
+    updateUI();
+  } else if(autoRot) {
+    groupRotY = t*0.2; groupRotX = Math.sin(t*0.12)*0.06;
+  }
+  sphereGroup.rotation.set(groupRotX, groupRotY, 0);
+
+  if (!esportsMode && randomFlash) {
+    flashTimer += 0.008;
+    if (flashTimer > 1.6) {
+      targetRx = Math.floor(Math.random() * 256);
+      targetGv = Math.floor(Math.random() * 256);
+      targetBv = Math.floor(Math.random() * 256);
+      flashTimer = 0;
+    }
+    rx = lerp(rx, targetRx, 0.035);
+    gv = lerp(gv, targetGv, 0.035);
+    bv = lerp(bv, targetBv, 0.035);
+    flashPulse = (Math.sin((flashTimer / 1.6) * Math.PI * 2 - Math.PI/2) + 1) / 2;
+    applyRgbValues(rx, gv, bv);
+    updateUI();
+  } else {
+    flashPulse = lerp(flashPulse, 0, 0.08);
+    updateCoreColor();
+  }
+
+  rayMain.material.rotation = t * 0.3;
+  rayOuter.material.rotation = -t * 0.2;
+  shafts.forEach(s => { s.userData.phase += 0.04; });
+
+  updateAdvertisingParticles(t, new THREE.Color(rx/255, gv/255, bv/255));
+  const pulse = 0.92 + 0.08*Math.sin(t*1.4);
+  core.scale.setScalar(pulse);
+  dotGlow1.material.opacity = 0.32 + 0.15*Math.sin(t*2);
+  dotGlow2.material.opacity = 0.1 + 0.06*Math.sin(t*2);
+  if (bloomEnabled && composer) composer.render();
+  else renderer.render(scene,camera);
+}
+resizeLssCanvas(); animate(); updateCoreColor(); updateUI(); refreshSystemPromptBox(); applyI18n();
+</script>
