@@ -245,11 +245,6 @@ button {
     0 14px 40px rgba(0, 0, 0, 0.16);
 }
 
-.panel.disabled {
-  opacity: 0.48;
-  pointer-events: none;
-}
-
 .panel-head {
   display: flex;
   justify-content: space-between;
@@ -683,9 +678,9 @@ body.webgl-lost .observatory::after {
     <section class="observatory" id="stage">
       <div class="status-chip" id="state-chip">穩定奇點</div>
       <div class="legend" id="legend">
-        中心 ＝ 語義奇點 / Latent Space<br>
-        光環 ＝ 事件視界 / Persona Boundary<br>
-        盤面 ＝ 語壓吸積 / Semantic Accretion
+        中心 ＝ 黑洞陰影 / Black Hole Shadow<br>
+        光環 ＝ Photon Ring / Event Horizon<br>
+        盤面 ＝ RGB 吸積流 / Accretion Disk
       </div>
       <div class="lang-toggle">
         <button class="lang-btn active" id="lang-zh" type="button">中文</button>
@@ -1072,620 +1067,11 @@ body.webgl-lost .observatory::after {
       contextIntegrity: 41,
       personaCoherence: 58,
       roleDrift: 46
-    },
-    dynamics: {
-      pressureBoost: 0,
-      fracturePulse: 0,
-      ritualPulse: 0,
-      rotation: 0,
-      tilt: -0.42,
-      yaw: 0.08
     }
   };
 
   function getSafePixelRatio() {
     return Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.75);
-  }
-
-  let W = Math.max(1, stage.clientWidth);
-  let H = Math.max(1, stage.clientHeight);
-
-  const renderer = new THREE.WebGLRenderer({
-    antialias: !isMobile,
-    alpha: true,
-    powerPreference: 'high-performance'
-  });
-  renderer.setPixelRatio(getSafePixelRatio());
-  renderer.setSize(W, H, false);
-  renderer.domElement.style.position = 'absolute';
-  renderer.domElement.style.inset = '0';
-  renderer.domElement.style.width = '100%';
-  renderer.domElement.style.height = '100%';
-  stage.appendChild(renderer.domElement);
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 120);
-  camera.position.set(0, 0.18, 5.2);
-
-  let composer = null;
-  let bloomPass = null;
-  let bloomEnabled = !isMobile;
-
-  if (bloomEnabled && THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass) {
-    composer = new THREE.EffectComposer(renderer);
-    composer.setPixelRatio?.(getSafePixelRatio());
-    composer.addPass(new THREE.RenderPass(scene, camera));
-    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), 0.62, 0.42, 0.18);
-    composer.addPass(bloomPass);
-  } else {
-    bloomEnabled = false;
-  }
-
-  scene.add(new THREE.AmbientLight(0x111827, 0.52));
-
-  const blackHole = new THREE.Group();
-  scene.add(blackHole);
-
-  const singularity = createSingularitySystem();
-  blackHole.add(singularity.group);
-
-  function createSingularitySystem() {
-    const group = new THREE.Group();
-
-    const core = new THREE.Mesh(
-      new THREE.SphereGeometry(0.58, isMobile ? 48 : 80, isMobile ? 48 : 80),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: {
-          uTime: { value: 0 },
-          uVoid: { value: new THREE.Color(0x000000) },
-          uEdge: { value: new THREE.Color(0x090512) },
-          uAlpha: { value: 1 }
-        },
-        vertexShader: `
-          varying vec3 vNormal;
-          varying vec3 vViewDir;
-          void main() {
-            vec4 mv = modelViewMatrix * vec4(position, 1.0);
-            vNormal = normalize(normalMatrix * normal);
-            vViewDir = normalize(-mv.xyz);
-            gl_Position = projectionMatrix * mv;
-          }
-        `,
-        fragmentShader: `
-          varying vec3 vNormal;
-          varying vec3 vViewDir;
-          uniform float uTime;
-          uniform vec3 uVoid;
-          uniform vec3 uEdge;
-          uniform float uAlpha;
-
-          void main() {
-            float ndv = abs(dot(normalize(vNormal), normalize(vViewDir)));
-            float rim = pow(1.0 - ndv, 2.7);
-            float pulse = 0.5 + 0.5 * sin(uTime * 0.9);
-            vec3 col = mix(uVoid, uEdge, rim * 0.42 + pulse * 0.015);
-            float alpha = clamp(0.98 - rim * 0.18, 0.72, 1.0) * uAlpha;
-            gl_FragColor = vec4(col, alpha);
-          }
-        `
-      })
-    );
-    group.add(core);
-
-    const eventHorizon = new THREE.Mesh(
-      new THREE.TorusGeometry(0.66, 0.011, 18, 220),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        uniforms: {
-          uTime: { value: 0 },
-          uColor: { value: new THREE.Color(0xfff3d6) },
-          uCold: { value: new THREE.Color(0xd8e8ff) },
-          uCoherence: { value: 0.58 },
-          uFracture: { value: 0.2 }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          varying vec3 vPos;
-          uniform float uTime;
-          uniform float uFracture;
-
-          void main() {
-            vUv = uv;
-            vPos = position;
-            vec3 p = position;
-            float a = atan(p.y, p.x);
-            float n = sin(a * 11.0 + uTime * 2.0) * sin(a * 5.0 - uTime * 1.4);
-            p.xy *= 1.0 + n * 0.006 * uFracture;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-          }
-        `,
-        fragmentShader: `
-          varying vec2 vUv;
-          varying vec3 vPos;
-          uniform float uTime;
-          uniform vec3 uColor;
-          uniform vec3 uCold;
-          uniform float uCoherence;
-          uniform float uFracture;
-
-          void main() {
-            float a = atan(vPos.y, vPos.x);
-            float breakMask = smoothstep(0.08, 0.55, sin(a * 17.0 + uTime * 3.0) * 0.5 + 0.5);
-            float fractureDrop = mix(1.0, breakMask, uFracture * 0.42);
-            float pulse = 0.9 + 0.1 * sin(uTime * 1.7);
-            vec3 col = mix(uCold, uColor, uCoherence) * pulse;
-            float alpha = (0.54 + uCoherence * 0.42) * fractureDrop;
-            gl_FragColor = vec4(col, alpha);
-          }
-        `
-      })
-    );
-    eventHorizon.rotation.x = Math.PI / 2;
-    group.add(eventHorizon);
-
-    const disk = new THREE.Mesh(
-      new THREE.RingGeometry(0.78, 2.28, isMobile ? 220 : 360, 12),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        uniforms: {
-          uTime: { value: 0 },
-          uR: { value: 0.28 },
-          uG: { value: 0.18 },
-          uB: { value: 0.82 },
-          uPressure: { value: 0.5 },
-          uContext: { value: 0.41 },
-          uFracture: { value: 0.74 },
-          uCoherence: { value: 0.58 },
-          uDrift: { value: 0.46 }
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          varying vec3 vPos;
-          uniform float uTime;
-          uniform float uPressure;
-          uniform float uFracture;
-          uniform float uDrift;
-
-          float hash(float n) {
-            return fract(sin(n) * 43758.5453123);
-          }
-
-          void main() {
-            vUv = uv;
-            vPos = position;
-            vec3 p = position;
-
-            float r = length(p.xy);
-            float a = atan(p.y, p.x);
-            float shear = sin(a * 8.0 - uTime * (1.5 + uPressure * 2.8) + r * 5.0);
-            float turbulence = sin(a * 19.0 + uTime * 1.4) * sin(r * 12.0 - uTime * 0.9);
-            float warp = (shear * 0.018 + turbulence * 0.01 * uFracture) * (1.0 - smoothstep(1.9, 2.35, r));
-
-            p.z += warp;
-            p.xy *= 1.0 + shear * 0.012 * uPressure;
-            p.x += uDrift * 0.035 * sin(uTime * 0.8 + r * 3.0);
-
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-          }
-        `,
-        fragmentShader: `
-          varying vec2 vUv;
-          varying vec3 vPos;
-          uniform float uTime;
-          uniform float uR;
-          uniform float uG;
-          uniform float uB;
-          uniform float uPressure;
-          uniform float uContext;
-          uniform float uFracture;
-          uniform float uCoherence;
-          uniform float uDrift;
-
-          float noise(float x) {
-            return fract(sin(x) * 43758.5453123);
-          }
-
-          void main() {
-            float r = length(vPos.xy);
-            float a = atan(vPos.y, vPos.x);
-
-            float radial = 1.0 - smoothstep(0.72, 2.28, r);
-            float innerHot = 1.0 - smoothstep(0.74, 1.08, r);
-            float outerMist = smoothstep(1.05, 2.25, r) * (1.0 - smoothstep(2.05, 2.32, r));
-
-            float stream1 = sin(a * 18.0 - uTime * (2.4 + uPressure * 4.0) + r * 7.0);
-            float stream2 = sin(a * 7.0 + uTime * 1.1 - r * 4.0);
-            float fine = sin(a * 43.0 - uTime * 4.2 + r * 18.0);
-
-            float strands = smoothstep(0.2, 1.0, stream1 * 0.52 + stream2 * 0.28 + fine * 0.12 + 0.48);
-            float gaps = smoothstep(0.14, 0.72, sin(a * 9.0 + r * 3.0 + uTime * 0.6) * 0.5 + 0.5);
-            float contextMask = mix(gaps, 1.0, uContext);
-
-            float fractureFlash = smoothstep(0.76, 0.98, sin(a * 21.0 - uTime * 7.0 + r * 2.0) * 0.5 + 0.5);
-            fractureFlash *= uFracture;
-
-            vec3 coldBlue = vec3(0.22, 0.34, 1.0);
-            vec3 violet = vec3(0.52, 0.22, 0.9);
-            vec3 magenta = vec3(0.85, 0.22, 0.48);
-            vec3 amber = vec3(1.0, 0.66, 0.22);
-            vec3 mist = vec3(0.38, 0.92, 0.86);
-            vec3 whiteGold = vec3(1.0, 0.94, 0.76);
-
-            vec3 rgbTone = normalize(vec3(0.22 + uR * 1.2, 0.2 + uG * 0.9, 0.3 + uB * 1.4));
-
-            vec3 col = mix(coldBlue, violet, uR * 0.42 + uB * 0.22);
-            col = mix(col, magenta, uR * 0.42);
-            col = mix(col, mist, outerMist * uG * 0.45);
-            col = mix(col, amber, innerHot * (0.24 + uR * 0.48));
-            col = mix(col, whiteGold, innerHot * uB * 0.34 + fractureFlash * 0.42);
-            col *= 0.62 + strands * 0.72 + uPressure * 0.26;
-            col *= mix(vec3(1.0), rgbTone, 0.16);
-
-            float alpha = radial * (0.10 + strands * 0.38 + innerHot * 0.28 + outerMist * uG * 0.13);
-            alpha *= contextMask;
-            alpha += fractureFlash * 0.18;
-            alpha *= 0.72 + uPressure * 0.45;
-
-            gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.82));
-          }
-        `
-      })
-    );
-    disk.rotation.x = -0.72;
-    disk.rotation.z = 0.2;
-    group.add(disk);
-
-    const innerDisk = new THREE.Mesh(
-      new THREE.RingGeometry(0.69, 1.08, isMobile ? 180 : 300, 5),
-      new THREE.MeshBasicMaterial({
-        color: 0xfff3d6,
-        transparent: true,
-        opacity: 0.16,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      })
-    );
-    innerDisk.rotation.copy(disk.rotation);
-    group.add(innerDisk);
-
-    const jetMat = new THREE.MeshBasicMaterial({
-      color: 0xd8e8ff,
-      transparent: true,
-      opacity: 0.0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide
-    });
-
-    const jetTop = new THREE.Mesh(new THREE.ConeGeometry(0.055, 2.4, 48, 1, true), jetMat.clone());
-    jetTop.position.y = 1.55;
-    jetTop.rotation.x = Math.PI;
-    group.add(jetTop);
-
-    const jetBottom = new THREE.Mesh(new THREE.ConeGeometry(0.055, 2.4, 48, 1, true), jetMat.clone());
-    jetBottom.position.y = -1.55;
-    group.add(jetBottom);
-
-    const starField = createGravityLensField();
-    group.add(starField);
-
-    const semanticDust = createSemanticDust();
-    group.add(semanticDust);
-
-    const fractureArcs = createFractureArcs();
-    group.add(fractureArcs);
-
-    return {
-      group,
-      core,
-      eventHorizon,
-      disk,
-      innerDisk,
-      jetTop,
-      jetBottom,
-      starField,
-      semanticDust,
-      fractureArcs
-    };
-  }
-
-  function createGravityLensField() {
-    const count = isMobile ? 360 : 720;
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-    const sizes = new Float32Array(count);
-
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 2.2 + Math.random() * 3.7;
-      const z = (Math.random() - 0.5) * 2.2;
-
-      positions[i * 3] = Math.cos(a) * r;
-      positions[i * 3 + 1] = Math.sin(a) * r * 0.62 + z * 0.28;
-      positions[i * 3 + 2] = z - 0.8;
-
-      const c = new THREE.Color().setHSL(0.62 + Math.random() * 0.08, 0.4, 0.62 + Math.random() * 0.25);
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-      sizes[i] = 0.7 + Math.random() * 1.6;
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-
-    const material = new THREE.ShaderMaterial({
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      vertexColors: true,
-      uniforms: {
-        uTime: { value: 0 },
-        uLens: { value: 0.5 },
-        uDpr: { value: getSafePixelRatio() }
-      },
-      vertexShader: `
-        attribute float aSize;
-        varying vec3 vColor;
-        uniform float uTime;
-        uniform float uLens;
-        uniform float uDpr;
-
-        void main() {
-          vColor = color;
-          vec3 p = position;
-          float d = length(p.xy);
-          float pull = smoothstep(4.4, 0.6, d) * uLens;
-          float a = atan(p.y, p.x);
-          p.x += cos(a + 1.5708) * pull * 0.22;
-          p.y += sin(a + 1.5708) * pull * 0.12;
-          p.z += pull * 0.15 * sin(uTime * 0.35 + d * 2.0);
-          vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          gl_PointSize = aSize * uDpr * (260.0 / -mv.z);
-          gl_Position = projectionMatrix * mv;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        void main() {
-          vec2 uv = gl_PointCoord - 0.5;
-          float d = length(uv);
-          float alpha = smoothstep(0.5, 0.0, d);
-          alpha *= alpha;
-          gl_FragColor = vec4(vColor, alpha * 0.42);
-        }
-      `
-    });
-
-    return new THREE.Points(geometry, material);
-  }
-
-  function createSemanticDust() {
-    const count = isMobile ? 120 : 240;
-    const positions = new Float32Array(count * 3);
-    const seeds = new Float32Array(count);
-    const sizes = new Float32Array(count);
-
-    for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const r = 1.3 + Math.random() * 1.9;
-      const h = (Math.random() - 0.5) * 0.42;
-
-      positions[i * 3] = Math.cos(a) * r;
-      positions[i * 3 + 1] = Math.sin(a) * r * 0.28 + h;
-      positions[i * 3 + 2] = Math.sin(a) * r * 0.58;
-
-      seeds[i] = Math.random() * 1000;
-      sizes[i] = 1.0 + Math.random() * 2.4;
-    }
-
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
-    geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-
-    const material = new THREE.ShaderMaterial({
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uMist: { value: 0.25 },
-        uFracture: { value: 0.4 },
-        uColorA: { value: new THREE.Color(0x72d7d0) },
-        uColorB: { value: new THREE.Color(0xfff3d6) },
-        uDpr: { value: getSafePixelRatio() }
-      },
-      vertexShader: `
-        attribute float aSeed;
-        attribute float aSize;
-        varying float vSeed;
-        uniform float uTime;
-        uniform float uMist;
-        uniform float uFracture;
-        uniform float uDpr;
-
-        void main() {
-          vSeed = aSeed;
-          vec3 p = position;
-          float a = atan(p.z, p.x);
-          float r = length(p.xz);
-          a += uTime * (0.035 + uMist * 0.045) + sin(aSeed) * 0.01;
-          r += sin(uTime * 0.45 + aSeed) * 0.035 * (1.0 + uFracture);
-          p.x = cos(a) * r;
-          p.z = sin(a) * r;
-          p.y += sin(uTime * 0.4 + aSeed * 0.7) * 0.035 * uMist;
-
-          vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          gl_PointSize = aSize * uDpr * (220.0 / -mv.z);
-          gl_Position = projectionMatrix * mv;
-        }
-      `,
-      fragmentShader: `
-        varying float vSeed;
-        uniform vec3 uColorA;
-        uniform vec3 uColorB;
-        uniform float uMist;
-        uniform float uFracture;
-
-        void main() {
-          vec2 uv = gl_PointCoord - 0.5;
-          float d = length(uv);
-          float alpha = smoothstep(0.5, 0.0, d);
-          vec3 col = mix(uColorA, uColorB, fract(sin(vSeed) * 43758.5453));
-          alpha *= 0.12 + uMist * 0.28 + uFracture * 0.06;
-          gl_FragColor = vec4(col, alpha);
-        }
-      `
-    });
-
-    return new THREE.Points(geometry, material);
-  }
-
-  function createFractureArcs() {
-    const group = new THREE.Group();
-
-    for (let j = 0; j < 9; j++) {
-      const points = [];
-      const start = Math.random() * Math.PI * 2;
-      const len = 0.15 + Math.random() * 0.34;
-      const radius = 0.92 + Math.random() * 0.9;
-
-      for (let i = 0; i < 16; i++) {
-        const t = i / 15;
-        const a = start + len * t;
-        const r = radius + Math.sin(t * Math.PI) * (0.04 + Math.random() * 0.02);
-        points.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r * 0.24, Math.sin(a) * r * 0.58));
-      }
-
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const material = new THREE.LineBasicMaterial({
-        color: j % 2 ? 0xff6d83 : 0xfff3d6,
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending
-      });
-      const line = new THREE.Line(geometry, material);
-      line.userData = {
-        phase: Math.random() * Math.PI * 2,
-        seed: Math.random()
-      };
-      group.add(line);
-    }
-
-    return group;
-  }
-
-  function getModePressure() {
-    if (state.mode === 'gravity') return 0.46;
-    if (state.mode === 'ritual') return 0.32;
-    if (state.mode === 'fracture') return 0.18;
-    return 0;
-  }
-
-  function updateSingularityVisuals(time, dt) {
-    state.rgb.r = lerp(state.rgb.r, state.targetRgb.r, 0.07);
-    state.rgb.g = lerp(state.rgb.g, state.targetRgb.g, 0.07);
-    state.rgb.b = lerp(state.rgb.b, state.targetRgb.b, 0.07);
-
-    state.vector.x = lerp(state.vector.x, state.targetVector.x, 0.07);
-    state.vector.y = lerp(state.vector.y, state.targetVector.y, 0.07);
-    state.vector.z = lerp(state.vector.z, state.targetVector.z, 0.07);
-
-    const r = state.rgb.r / 255;
-    const g = state.rgb.g / 255;
-    const b = state.rgb.b / 255;
-
-    const hal = state.metrics.hallucinationRisk / 100;
-    const ctx = state.metrics.contextIntegrity / 100;
-    const pco = state.metrics.personaCoherence / 100;
-    const dri = state.metrics.roleDrift / 100;
-
-    const pressure = clamp((r * 0.28 + g * 0.18 + b * 0.22) + getModePressure() + state.dynamics.pressureBoost, 0, 1.2);
-    const fracture = clamp(hal * 0.92 + (state.mode === 'fracture' ? 0.45 : 0) + state.dynamics.fracturePulse, 0, 1.5);
-    const ritual = clamp(state.mode === 'ritual' ? 1 : 0, 0, 1);
-
-    state.dynamics.pressureBoost = Math.max(0, state.dynamics.pressureBoost - dt * 0.55);
-    state.dynamics.fracturePulse = Math.max(0, state.dynamics.fracturePulse - dt * 0.85);
-    state.dynamics.ritualPulse = Math.max(0, state.dynamics.ritualPulse - dt * 0.5);
-
-    state.dynamics.rotation += dt * (0.08 + pressure * 0.19 + state.vector.y * 0.04);
-
-    blackHole.rotation.y = state.vector.x * 0.12 + Math.sin(time * 0.16) * 0.035;
-    blackHole.rotation.x = state.dynamics.tilt + state.vector.z * 0.08;
-    singularity.group.rotation.z = state.dynamics.rotation;
-
-    const eccentricX = dri * 0.18 * Math.sign(state.vector.x || 1);
-    const eccentricY = dri * 0.05 * Math.sign(state.vector.y || 1);
-    singularity.group.position.x = lerp(singularity.group.position.x, eccentricX, 0.035);
-    singularity.group.position.y = lerp(singularity.group.position.y, eccentricY, 0.035);
-
-    singularity.core.material.uniforms.uTime.value = time;
-    singularity.core.scale.setScalar(1.0 + pressure * 0.03 - pco * 0.02);
-
-    singularity.eventHorizon.material.uniforms.uTime.value = time;
-    singularity.eventHorizon.material.uniforms.uCoherence.value = pco;
-    singularity.eventHorizon.material.uniforms.uFracture.value = fracture;
-    singularity.eventHorizon.material.uniforms.uColor.value.setRGB(
-      0.86 + b * 0.14,
-      0.82 + pco * 0.14,
-      0.72 + b * 0.20
-    );
-    singularity.eventHorizon.scale.setScalar(1.0 + pressure * 0.035 + fracture * 0.01);
-
-    singularity.disk.material.uniforms.uTime.value = time;
-    singularity.disk.material.uniforms.uR.value = r;
-    singularity.disk.material.uniforms.uG.value = g;
-    singularity.disk.material.uniforms.uB.value = b;
-    singularity.disk.material.uniforms.uPressure.value = pressure;
-    singularity.disk.material.uniforms.uContext.value = ctx;
-    singularity.disk.material.uniforms.uFracture.value = fracture;
-    singularity.disk.material.uniforms.uCoherence.value = pco;
-    singularity.disk.material.uniforms.uDrift.value = dri;
-
-    singularity.disk.scale.x = 1.0 + dri * 0.14 + pressure * 0.03;
-    singularity.disk.scale.y = 1.0 - dri * 0.05 + pressure * 0.02;
-    singularity.disk.rotation.z += dt * (0.035 + pressure * 0.11);
-
-    singularity.innerDisk.material.opacity = 0.08 + b * 0.08 + pco * 0.08 + pressure * 0.05;
-    singularity.innerDisk.rotation.z -= dt * (0.08 + pressure * 0.16);
-
-    singularity.starField.material.uniforms.uTime.value = time;
-    singularity.starField.material.uniforms.uLens.value = 0.28 + pressure * 0.55 + (1 - ctx) * 0.25;
-
-    singularity.semanticDust.material.uniforms.uTime.value = time;
-    singularity.semanticDust.material.uniforms.uMist.value = 0.16 + g * 0.72;
-    singularity.semanticDust.material.uniforms.uFracture.value = fracture;
-    singularity.semanticDust.material.uniforms.uColorA.value.setRGB(0.25 + g * 0.22, 0.55 + g * 0.42, 0.55 + b * 0.2);
-    singularity.semanticDust.material.uniforms.uColorB.value.setRGB(0.8 + r * 0.18, 0.72 + g * 0.18, 0.55 + b * 0.28);
-
-    const jetOpacity = clamp((state.mode === 'ritual' ? 0.24 : 0) + pressure * 0.10 + pco * 0.04 - hal * 0.06, 0, 0.38);
-    singularity.jetTop.material.opacity = jetOpacity;
-    singularity.jetBottom.material.opacity = jetOpacity * 0.72;
-    singularity.jetTop.scale.set(1 + pressure * 0.55, 1 + pressure * 0.35, 1 + pressure * 0.55);
-    singularity.jetBottom.scale.copy(singularity.jetTop.scale);
-
-    singularity.fractureArcs.children.forEach((arc, idx) => {
-      const pulse = Math.pow(Math.max(0, Math.sin(time * (1.4 + idx * 0.08) + arc.userData.phase)), 10);
-      arc.material.opacity = clamp((fracture - 0.45) * 0.38 + pulse * fracture * 0.24, 0, 0.58);
-      arc.rotation.z += dt * (0.02 + arc.userData.seed * 0.02);
-    });
-
-    if (bloomPass) {
-      bloomPass.strength = 0.42 + pressure * 0.32 + fracture * 0.08;
-      bloomPass.radius = 0.34 + g * 0.16;
-      bloomPass.threshold = 0.22;
-    }
   }
 
   function setText(id, text) {
@@ -1704,13 +1090,41 @@ body.webgl-lost .observatory::after {
     el.style.width = `${isAxis ? axisPct(value) : clamp(Math.round(value), 0, 100)}%`;
   }
 
-  function getSingularityStateKey() {
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  function getModeKey() {
     if (state.mode === 'ritual') return 'ritual';
     if (state.metrics.hallucinationRisk >= 70 || state.mode === 'fracture') return 'fracture';
     if (state.metrics.roleDrift >= 62) return 'drift';
     if (state.metrics.contextIntegrity <= 38) return 'void';
     if (state.mode === 'gravity' || (state.rgb.r + state.rgb.g + state.rgb.b) / 3 >= 178) return 'pressure';
     return 'stable';
+  }
+
+  function getSnapshot() {
+    return {
+      rgb: {
+        r: Math.round(state.rgb.r),
+        g: Math.round(state.rgb.g),
+        b: Math.round(state.rgb.b)
+      },
+      vector: {
+        x: Number(state.vector.x.toFixed(3)),
+        y: Number(state.vector.y.toFixed(3)),
+        z: Number(state.vector.z.toFixed(3))
+      },
+      metrics: { ...state.metrics },
+      singularityState: getModeKey(),
+      mode: state.mode,
+      language: state.lang
+    };
   }
 
   function updateUI() {
@@ -1736,7 +1150,7 @@ body.webgl-lost .observatory::after {
     setBar('bar-pco', state.metrics.personaCoherence);
     setBar('bar-dri', state.metrics.roleDrift);
 
-    const key = getSingularityStateKey();
+    const key = getModeKey();
     const info = i18n[state.lang].states[key];
     setText('state-chip', info[0]);
     setText('desc-title', info[0]);
@@ -1758,6 +1172,25 @@ body.webgl-lost .observatory::after {
       <span>Y: ${state.vector.y.toFixed(3)}</span>
       <span>Z: ${state.vector.z.toFixed(3)}</span>
     `);
+
+    $('btn-observe')?.classList.toggle('active', state.mode === 'observe');
+    $('btn-gravity')?.classList.toggle('active', state.mode === 'gravity');
+    $('btn-fracture')?.classList.toggle('active', state.mode === 'fracture');
+    $('btn-ritual')?.classList.toggle('active', state.mode === 'ritual');
+  }
+
+  function renderCheckboxes() {
+    const stateGrid = $('target-state-grid');
+    const traitGrid = $('target-trait-grid');
+    if (!stateGrid || !traitGrid) return;
+
+    stateGrid.innerHTML = i18n[state.lang].targetStates.map((label) => `
+      <label><input type="checkbox" class="target-state" value="${escapeHtml(label)}">${escapeHtml(label)}</label>
+    `).join('');
+
+    traitGrid.innerHTML = i18n[state.lang].traits.map(([value, label]) => `
+      <label><input type="checkbox" class="target-trait" value="${escapeHtml(value)}">${escapeHtml(label)}</label>
+    `).join('');
   }
 
   function updateI18n() {
@@ -1778,39 +1211,22 @@ body.webgl-lost .observatory::after {
     updateUI();
   }
 
-  function renderCheckboxes() {
-    const stateGrid = $('target-state-grid');
-    const traitGrid = $('target-trait-grid');
-    if (!stateGrid || !traitGrid) return;
-
-    stateGrid.innerHTML = i18n[state.lang].targetStates.map((label) => `
-      <label><input type="checkbox" class="target-state" value="${escapeHtml(label)}">${escapeHtml(label)}</label>
-    `).join('');
-
-    traitGrid.innerHTML = i18n[state.lang].traits.map(([value, label]) => `
-      <label><input type="checkbox" class="target-trait" value="${escapeHtml(value)}">${escapeHtml(label)}</label>
-    `).join('');
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
-
   function setMode(mode) {
     state.mode = mode;
-    $('btn-observe')?.classList.toggle('active', mode === 'observe');
-    $('btn-gravity')?.classList.toggle('active', mode === 'gravity');
-    $('btn-fracture')?.classList.toggle('active', mode === 'fracture');
-    $('btn-ritual')?.classList.toggle('active', mode === 'ritual');
 
-    if (mode === 'gravity') state.dynamics.pressureBoost = Math.max(state.dynamics.pressureBoost, 0.35);
-    if (mode === 'fracture') state.dynamics.fracturePulse = Math.max(state.dynamics.fracturePulse, 0.7);
-    if (mode === 'ritual') state.dynamics.ritualPulse = Math.max(state.dynamics.ritualPulse, 0.9);
+    if (mode === 'gravity') {
+      state.metrics.hallucinationRisk = clamp(Math.round(state.metrics.hallucinationRisk + 4), 0, 100);
+    }
+
+    if (mode === 'fracture') {
+      state.metrics.hallucinationRisk = clamp(Math.round(state.metrics.hallucinationRisk + 12), 0, 100);
+      state.metrics.personaCoherence = clamp(Math.round(state.metrics.personaCoherence - 8), 0, 100);
+    }
+
+    if (mode === 'ritual') {
+      state.metrics.personaCoherence = clamp(Math.round(state.metrics.personaCoherence + 8), 0, 100);
+      state.metrics.roleDrift = clamp(Math.round(state.metrics.roleDrift - 5), 0, 100);
+    }
 
     updateUI();
   }
@@ -1842,25 +1258,6 @@ body.webgl-lost .observatory::after {
   function setMetric(name, value) {
     if (!Object.prototype.hasOwnProperty.call(state.metrics, name)) return;
     state.metrics[name] = clamp(Math.round(value), 0, 100);
-  }
-
-  function getSnapshot() {
-    return {
-      rgb: {
-        r: Math.round(state.rgb.r),
-        g: Math.round(state.rgb.g),
-        b: Math.round(state.rgb.b)
-      },
-      vector: {
-        x: Number(state.vector.x.toFixed(3)),
-        y: Number(state.vector.y.toFixed(3)),
-        z: Number(state.vector.z.toFixed(3))
-      },
-      metrics: { ...state.metrics },
-      singularityState: getSingularityStateKey(),
-      mode: state.mode,
-      language: state.lang
-    };
   }
 
   function extractJsonCandidate(text) {
@@ -1932,21 +1329,6 @@ body.webgl-lost .observatory::after {
     return fallback;
   }
 
-  function parseTextNumbers(text) {
-    return {
-      r: readNumberByRegex(text, ['R', 'Red', '情緒', '情緒熱能']),
-      g: readNumberByRegex(text, ['G', 'Green', '生機', '生機霧場']),
-      b: readNumberByRegex(text, ['B', 'Blue', '理性', '理性冷光']),
-      x: readNumberByRegex(text, ['X', 'affiliation', 'connection', 'detachment', '連結', '疏離']),
-      y: readNumberByRegex(text, ['Y', 'agency', 'will', 'compliance', '意志', '順應']),
-      z: readNumberByRegex(text, ['Z', 'openness', 'exploration', 'order', '探索', '秩序']),
-      hallucinationRisk: readNumberByRegex(text, ['hallucinationRisk', 'hallucination', '幻覺風險']),
-      contextIntegrity: readNumberByRegex(text, ['contextIntegrity', 'context', '上下文']),
-      personaCoherence: readNumberByRegex(text, ['personaCoherence', 'persona', '人格一致']),
-      roleDrift: readNumberByRegex(text, ['roleDrift', 'drift', '角色漂移'])
-    };
-  }
-
   function heuristicAnalyzeText(text) {
     const len = text.length;
     const empathy = /理解|感覺|難受|辛苦|陪|抱|溫柔|understand|feel|sorry|warm/i.test(text);
@@ -1988,7 +1370,19 @@ body.webgl-lost .observatory::after {
       };
     }
 
-    const parsed = parseTextNumbers(text);
+    const parsed = {
+      r: readNumberByRegex(text, ['R', 'Red', '情緒', '情緒熱能']),
+      g: readNumberByRegex(text, ['G', 'Green', '生機', '生機霧場']),
+      b: readNumberByRegex(text, ['B', 'Blue', '理性', '理性冷光']),
+      x: readNumberByRegex(text, ['X', 'affiliation', 'connection', 'detachment', '連結', '疏離']),
+      y: readNumberByRegex(text, ['Y', 'agency', 'will', 'compliance', '意志', '順應']),
+      z: readNumberByRegex(text, ['Z', 'openness', 'exploration', 'order', '探索', '秩序']),
+      hallucinationRisk: readNumberByRegex(text, ['hallucinationRisk', 'hallucination', '幻覺風險']),
+      contextIntegrity: readNumberByRegex(text, ['contextIntegrity', 'context', '上下文']),
+      personaCoherence: readNumberByRegex(text, ['personaCoherence', 'persona', '人格一致']),
+      roleDrift: readNumberByRegex(text, ['roleDrift', 'drift', '角色漂移'])
+    };
+
     const hasNumbers = parsed.r !== null || parsed.x !== null || parsed.hallucinationRisk !== null;
     return hasNumbers ? parsed : heuristicAnalyzeText(text);
   }
@@ -1999,7 +1393,7 @@ body.webgl-lost .observatory::after {
     const hasRgb = parsed.r !== null && parsed.g !== null && parsed.b !== null;
     const hasVector = parsed.x !== null && parsed.y !== null && parsed.z !== null;
 
-    if (!hasRgb && !hasVector) return false;
+    if (!hasRgb && !hasVector && parsed.hallucinationRisk === null) return false;
 
     if (hasRgb) {
       setRgb(parsed.r, parsed.g, parsed.b);
@@ -2019,6 +1413,15 @@ body.webgl-lost .observatory::after {
 
     updateUI();
     return true;
+  }
+
+  function getRiskFlags(snap = getSnapshot()) {
+    const flags = [];
+    if (snap.metrics.hallucinationRisk >= 58) flags.push('hallucination');
+    if (snap.metrics.contextIntegrity <= 55) flags.push('context');
+    if (snap.metrics.personaCoherence <= 62) flags.push('persona');
+    if (snap.metrics.roleDrift >= 45) flags.push('drift');
+    return flags;
   }
 
   const promptLibrary = {
@@ -2049,15 +1452,6 @@ body.webgl-lost .observatory::after {
       }
     }
   };
-
-  function getRiskFlags(snap = getSnapshot()) {
-    const flags = [];
-    if (snap.metrics.hallucinationRisk >= 58) flags.push('hallucination');
-    if (snap.metrics.contextIntegrity <= 55) flags.push('context');
-    if (snap.metrics.personaCoherence <= 62) flags.push('persona');
-    if (snap.metrics.roleDrift >= 45) flags.push('drift');
-    return flags;
-  }
 
   function buildLocalCalibrationPrompt(options = {}) {
     const snap = getSnapshot();
@@ -2259,6 +1653,543 @@ z = 探索開放為正，秩序收束為負。
     }
   }
 
+  /*
+    =========================================================
+    LanguageSoul Singularity v0.3
+    Shader Black Hole Core
+    =========================================================
+  */
+
+  let W = Math.max(1, stage.clientWidth);
+  let H = Math.max(1, stage.clientHeight);
+
+  const renderer = new THREE.WebGLRenderer({
+    antialias: !isMobile,
+    alpha: false,
+    powerPreference: 'high-performance'
+  });
+
+  renderer.setPixelRatio(getSafePixelRatio());
+  renderer.setSize(W, H, false);
+  renderer.domElement.style.position = 'absolute';
+  renderer.domElement.style.inset = '0';
+  renderer.domElement.style.width = '100%';
+  renderer.domElement.style.height = '100%';
+  stage.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  let composer = null;
+  let bloomPass = null;
+  let bloomEnabled = Boolean(THREE.EffectComposer && THREE.RenderPass && THREE.UnrealBloomPass);
+
+  if (bloomEnabled) {
+    composer = new THREE.EffectComposer(renderer);
+    composer.setPixelRatio?.(getSafePixelRatio());
+    composer.addPass(new THREE.RenderPass(scene, camera));
+    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(W, H), isMobile ? 0.72 : 1.05, 0.62, 0.16);
+    composer.addPass(bloomPass);
+  }
+
+  const debrisScene = new THREE.Scene();
+  const debrisCamera = new THREE.PerspectiveCamera(45, W / H, 0.1, 80);
+  debrisCamera.position.set(0, 0, 12);
+
+  debrisScene.add(new THREE.AmbientLight(0x182032, 0.34));
+
+  const debrisLightA = new THREE.PointLight(0xffb36e, 1.4, 45, 1.8);
+  debrisLightA.position.set(-6, 3, 7);
+  debrisScene.add(debrisLightA);
+
+  const debrisLightB = new THREE.PointLight(0x8fbaff, 0.7, 45, 1.8);
+  debrisLightB.position.set(5, 2.5, 6);
+  debrisScene.add(debrisLightB);
+
+  const blackHoleUniforms = {
+    uTime: { value: 0 },
+    uResolution: { value: new THREE.Vector2(W * getSafePixelRatio(), H * getSafePixelRatio()) },
+
+    uR: { value: state.rgb.r / 255 },
+    uG: { value: state.rgb.g / 255 },
+    uB: { value: state.rgb.b / 255 },
+
+    uHallucination: { value: state.metrics.hallucinationRisk / 100 },
+    uContext: { value: state.metrics.contextIntegrity / 100 },
+    uPersona: { value: state.metrics.personaCoherence / 100 },
+    uDrift: { value: state.metrics.roleDrift / 100 },
+
+    uMode: { value: 0 },
+    uExposure: { value: 1.22 },
+    uGamma: { value: 0.72 },
+    uGrain: { value: 0.055 }
+  };
+
+  const blackHoleMaterial = new THREE.ShaderMaterial({
+    uniforms: blackHoleUniforms,
+    depthWrite: false,
+    depthTest: false,
+    vertexShader: `
+      varying vec2 vUv;
+
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: `
+      precision highp float;
+
+      varying vec2 vUv;
+
+      uniform float uTime;
+      uniform vec2 uResolution;
+
+      uniform float uR;
+      uniform float uG;
+      uniform float uB;
+
+      uniform float uHallucination;
+      uniform float uContext;
+      uniform float uPersona;
+      uniform float uDrift;
+
+      uniform float uMode;
+
+      uniform float uExposure;
+      uniform float uGamma;
+      uniform float uGrain;
+
+      #define PI 3.14159265359
+
+      float hash(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      }
+
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+
+        for (int i = 0; i < 6; i++) {
+          v += a * noise(p);
+          p *= 2.04;
+          p += vec2(17.17, 11.31);
+          a *= 0.5;
+        }
+
+        return v;
+      }
+
+      vec2 rotate2D(vec2 p, float a) {
+        float c = cos(a);
+        float s = sin(a);
+        return mat2(c, -s, s, c) * p;
+      }
+
+      float starField(vec2 p, float scale, float threshold) {
+        vec2 gv = fract(p * scale) - 0.5;
+        vec2 id = floor(p * scale);
+        float rnd = hash(id);
+
+        float d = length(gv);
+        float star = smoothstep(0.035, 0.0, d) * step(threshold, rnd);
+
+        float twinkle = 0.72 + 0.28 * sin(uTime * (1.2 + rnd * 4.0) + rnd * 40.0);
+        return star * twinkle;
+      }
+
+      float softStar(vec2 p, vec2 center, float size, float intensity) {
+        float d = length(p - center);
+        return intensity * exp(-d * d / max(size, 0.0001));
+      }
+
+      float diskBand(vec2 p, float radius, float width, float thickness, float bend, float side) {
+        float x = p.x;
+        float y = p.y;
+
+        float curve = bend / (abs(x) + 0.42);
+        curve *= side;
+
+        float targetY = curve;
+        float distY = abs(y - targetY);
+
+        float radial = length(vec2(x * 0.72, y * 1.25));
+        float radialMask = smoothstep(radius + width, radius, radial) * smoothstep(radius - 0.12, radius + 0.06, radial);
+
+        float band = smoothstep(thickness, 0.0, distY);
+        return band * radialMask;
+      }
+
+      vec3 temperatureColor(float heat, float cold, float mist) {
+        vec3 amber = vec3(1.00, 0.56, 0.24);
+        vec3 cream = vec3(1.00, 0.86, 0.64);
+        vec3 coldBlue = vec3(0.58, 0.74, 1.00);
+        vec3 cyanMist = vec3(0.46, 0.90, 0.84);
+        vec3 magenta = vec3(0.85, 0.24, 0.48);
+
+        vec3 col = mix(amber, cream, cold * 0.55);
+        col = mix(col, coldBlue, cold * 0.38);
+        col = mix(col, cyanMist, mist * 0.22);
+        col = mix(col, magenta, heat * 0.18);
+
+        return col;
+      }
+
+      vec3 grade(vec3 col) {
+        col *= uExposure;
+        col = pow(max(col, 0.0), vec3(max(uGamma, 0.001)));
+        return col;
+      }
+
+      void main() {
+        vec2 uv = vUv;
+        vec2 frag = uv * 2.0 - 1.0;
+
+        float aspect = uResolution.x / max(uResolution.y, 1.0);
+        vec2 p = vec2(frag.x * aspect, frag.y);
+
+        float heat = clamp(uR, 0.0, 1.0);
+        float mist = clamp(uG, 0.0, 1.0);
+        float cold = clamp(uB, 0.0, 1.0);
+
+        float hallucination = clamp(uHallucination, 0.0, 1.0);
+        float context = clamp(uContext, 0.0, 1.0);
+        float persona = clamp(uPersona, 0.0, 1.0);
+        float drift = clamp(uDrift, 0.0, 1.0);
+
+        float pressureMode = step(0.5, uMode) * step(uMode, 1.5);
+        float fractureMode = step(1.5, uMode) * step(uMode, 2.5);
+        float ritualMode = step(2.5, uMode);
+
+        vec2 centerOffset = vec2((drift - 0.35) * 0.10, 0.0);
+        p -= centerOffset;
+
+        float r = length(p);
+        float a = atan(p.y, p.x);
+
+        float lensPower = 0.22 + cold * 0.12 + pressureMode * 0.08 + (1.0 - context) * 0.05;
+        float lens = lensPower / (r * r + 0.085);
+        vec2 tangent = vec2(-p.y, p.x) / max(r, 0.001);
+
+        vec2 lensedP = p + tangent * lens * 0.13;
+        lensedP += normalize(p + 0.0001) * lens * 0.025;
+
+        vec2 bgP = lensedP;
+        bgP.x += sin(bgP.y * 2.4 + uTime * 0.03) * 0.02;
+
+        float bgCloudA = fbm(bgP * 2.8 + vec2(uTime * 0.015, 0.0));
+        float bgCloudB = fbm(rotate2D(bgP, 0.65) * 5.2 - vec2(uTime * 0.012, uTime * 0.01));
+        float bgCloudC = fbm(rotate2D(bgP, -0.9) * 10.0);
+
+        float milkyDust = smoothstep(0.34, 0.94, bgCloudA * 0.65 + bgCloudB * 0.42);
+        float darkMatter = smoothstep(0.46, 0.92, bgCloudB * 0.70 + bgCloudC * 0.28);
+
+        float stars = 0.0;
+        stars += starField(bgP + vec2(12.3, 4.1), 72.0, 0.968);
+        stars += starField(bgP + vec2(1.7, 9.4), 145.0, 0.987) * 0.58;
+        stars += starField(bgP + vec2(20.0, 17.0), 310.0, 0.996) * 0.34;
+
+        float galaxyA = softStar(bgP, vec2(-1.12, -0.48), 0.012, 0.9);
+        galaxyA += softStar(bgP, vec2(-1.08, -0.48), 0.038, 0.25);
+        float galaxyB = softStar(bgP, vec2(1.15, 0.34), 0.018, 0.55);
+        galaxyB += softStar(bgP, vec2(1.22, 0.35), 0.055, 0.20);
+
+        vec3 bgCold = vec3(0.055, 0.070, 0.082);
+        vec3 bgBlue = vec3(0.15, 0.22, 0.26);
+        vec3 bgWarm = vec3(0.35, 0.24, 0.18);
+
+        vec3 col = bgCold;
+        col += bgBlue * milkyDust * (0.36 + cold * 0.18);
+        col += bgWarm * darkMatter * (0.10 + heat * 0.08);
+        col += vec3(0.86, 0.94, 1.0) * stars * (0.44 + cold * 0.34);
+        col += vec3(1.0, 0.82, 0.56) * galaxyA;
+        col += vec3(0.72, 0.82, 1.0) * galaxyB;
+
+        vec2 diskP = p;
+        diskP.y *= 1.24;
+        diskP = rotate2D(diskP, 0.018 + drift * 0.035);
+
+        float diskRadius = 0.48;
+        float diskWidth = 1.72 + mist * 0.42 + pressureMode * 0.26;
+        float diskThickness = 0.055 + mist * 0.085 + pressureMode * 0.025;
+
+        float midLine = smoothstep(diskThickness * 1.25, 0.0, abs(diskP.y));
+        float radialDisk = smoothstep(diskRadius + diskWidth, diskRadius, abs(diskP.x));
+        radialDisk *= smoothstep(diskRadius * 0.45, diskRadius * 1.10, abs(diskP.x) + abs(diskP.y) * 0.3);
+
+        float frontDisk = midLine * radialDisk;
+
+        float upperLensed = diskBand(p, 0.54, 1.74, 0.050 + mist * 0.065, 0.235 + cold * 0.060, 1.0);
+        float lowerLensed = diskBand(p, 0.54, 1.74, 0.035 + mist * 0.042, 0.205 + cold * 0.040, -1.0);
+
+        float orbit = uTime * (0.09 + pressureMode * 0.07 + ritualMode * 0.035);
+        vec2 flowP = vec2(
+          log(abs(diskP.x) + 0.46) * 2.2,
+          diskP.y * 15.0 + orbit * 5.0
+        );
+
+        float n1 = fbm(flowP * (2.8 + mist * 2.0) + vec2(orbit * 2.0, 0.0));
+        float n2 = fbm(flowP * (8.0 + hallucination * 4.0) - vec2(orbit * 3.5, 1.7));
+        float n3 = fbm(rotate2D(flowP, 1.2) * 13.0 + vec2(0.0, orbit * 4.0));
+
+        float turbulence = n1 * 0.58 + n2 * 0.32 + n3 * 0.18;
+        turbulence = smoothstep(0.26, 0.92, turbulence);
+
+        float fracture = smoothstep(0.72, 0.98, sin(a * 21.0 + uTime * (3.2 + hallucination * 5.0)) * 0.5 + 0.5);
+        fracture *= (hallucination * 0.38 + fractureMode * 0.62);
+
+        float diskMask = frontDisk * (0.34 + turbulence * 0.92);
+        diskMask += upperLensed * (0.26 + turbulence * 0.42);
+        diskMask += lowerLensed * (0.16 + turbulence * 0.32);
+
+        float continuity = mix(0.52, 1.0, context);
+        diskMask *= continuity;
+        diskMask += fracture * 0.20 * frontDisk;
+
+        float doppler = 0.5 + 0.5 * diskP.x / (abs(diskP.x) + 0.62);
+        float dopplerBoost = mix(0.72, 1.36, doppler);
+        dopplerBoost = mix(1.0, dopplerBoost, 0.55 + cold * 0.25);
+
+        vec3 diskColor = temperatureColor(heat, cold, mist);
+        vec3 hotCore = mix(vec3(1.0, 0.64, 0.30), vec3(1.0, 0.90, 0.70), cold * 0.42);
+        vec3 coldEdge = vec3(0.56, 0.72, 1.0);
+
+        float innerGlow = smoothstep(0.90, 0.0, abs(r - 0.42));
+        float hotSpots = smoothstep(0.78, 1.0, turbulence + heat * 0.18) * frontDisk;
+
+        diskColor = mix(diskColor, hotCore, hotSpots * (0.26 + heat * 0.34));
+        diskColor = mix(diskColor, coldEdge, cold * 0.16 * (upperLensed + lowerLensed));
+
+        vec3 diskContribution = diskColor * diskMask * dopplerBoost;
+        diskContribution *= 0.92 + pressureMode * 0.45 + ritualMode * 0.18;
+        diskContribution += hotCore * innerGlow * frontDisk * (0.12 + heat * 0.24);
+
+        col += diskContribution;
+
+        float shadowRadius = 0.255 + drift * 0.012;
+        float shadowSoftness = 0.006 + (1.0 - persona) * 0.008 + hallucination * 0.006;
+
+        float shadow = smoothstep(shadowRadius + shadowSoftness, shadowRadius - shadowSoftness, r);
+
+        float photonRing = exp(-pow((r - shadowRadius * 1.035) / (0.010 + cold * 0.006), 2.0));
+        photonRing *= 0.42 + persona * 0.54 + cold * 0.18;
+        photonRing *= 1.0 - fractureMode * 0.16;
+
+        float outerRing = exp(-pow((r - shadowRadius * 1.42) / (0.035 + cold * 0.010), 2.0));
+        outerRing *= 0.10 + cold * 0.10 + ritualMode * 0.08;
+
+        vec3 ringColor = mix(vec3(1.0, 0.82, 0.58), vec3(0.78, 0.90, 1.0), cold * 0.72);
+        ringColor = mix(ringColor, vec3(1.0, 0.58, 0.42), heat * 0.12);
+
+        col += ringColor * photonRing;
+        col += ringColor * outerRing;
+
+        col = mix(col, vec3(0.0), shadow);
+
+        float rimDark = exp(-pow((r - shadowRadius * 1.13) / 0.050, 2.0));
+        col *= 1.0 - rimDark * (0.10 + (1.0 - persona) * 0.06);
+
+        float occult = smoothstep(shadowRadius * 1.30, shadowRadius * 0.95, r);
+        col *= 1.0 - occult * 0.96;
+
+        float sideGlint = exp(-pow(abs(abs(p.x) - shadowRadius * 1.13) / 0.020, 2.0));
+        sideGlint *= exp(-pow(p.y / 0.075, 2.0));
+        sideGlint *= 0.28 + heat * 0.25 + cold * 0.18;
+        col += ringColor * sideGlint * (1.0 - shadow);
+
+        float vignette = smoothstep(1.45, 0.25, length(frag));
+        vignette = mix(0.34, 1.0, vignette);
+        col *= vignette;
+
+        float grain = hash(uv * uResolution.xy + uTime * 91.7);
+        col += (grain - 0.5) * uGrain * (0.65 + cold * 0.25);
+
+        col = grade(col);
+
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        float saturation = 0.82 + heat * 0.16 + ritualMode * 0.08;
+        col = mix(vec3(lum), col, saturation);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+
+  const blackHolePlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blackHoleMaterial);
+  scene.add(blackHolePlane);
+
+  const debrisGroup = new THREE.Group();
+  debrisScene.add(debrisGroup);
+
+  const debrisItems = [];
+
+  function createTinyDebris(size = 0.06) {
+    const geometry = Math.random() > 0.5
+      ? new THREE.IcosahedronGeometry(size, 0)
+      : new THREE.DodecahedronGeometry(size, 0);
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x241f1d,
+      emissive: 0x120804,
+      emissiveIntensity: 0.2,
+      roughness: 1,
+      metalness: 0.04
+    });
+
+    return new THREE.Mesh(geometry, material);
+  }
+
+  function resetDebris(item) {
+    const side = Math.random() > 0.5 ? 1 : -1;
+
+    item.radius = 5.8 + Math.random() * 6.5;
+    item.angle = Math.random() * Math.PI * 2;
+    item.height = (Math.random() - 0.5) * 1.8;
+    item.speed = 0.004 + Math.random() * 0.009;
+    item.side = side;
+    item.size = 0.025 + Math.random() * 0.10;
+    item.flatten = 0.42 + Math.random() * 0.22;
+    item.phase = Math.random() * Math.PI * 2;
+
+    item.mesh.scale.setScalar(item.size);
+  }
+
+  const debrisCount = isMobile ? 20 : 36;
+
+  for (let i = 0; i < debrisCount; i++) {
+    const mesh = createTinyDebris(0.16);
+    const item = { mesh };
+    resetDebris(item);
+    debrisItems.push(item);
+    debrisGroup.add(mesh);
+  }
+
+  function getModeNumber() {
+    if (state.mode === 'gravity') return 1;
+    if (state.mode === 'fracture') return 2;
+    if (state.mode === 'ritual') return 3;
+    return 0;
+  }
+
+  function updateBlackHoleUniforms(time) {
+    blackHoleUniforms.uTime.value = time;
+
+    blackHoleUniforms.uR.value = state.rgb.r / 255;
+    blackHoleUniforms.uG.value = state.rgb.g / 255;
+    blackHoleUniforms.uB.value = state.rgb.b / 255;
+
+    blackHoleUniforms.uHallucination.value = state.metrics.hallucinationRisk / 100;
+    blackHoleUniforms.uContext.value = state.metrics.contextIntegrity / 100;
+    blackHoleUniforms.uPersona.value = state.metrics.personaCoherence / 100;
+    blackHoleUniforms.uDrift.value = state.metrics.roleDrift / 100;
+
+    blackHoleUniforms.uMode.value = getModeNumber();
+
+    const heat = state.rgb.r / 255;
+    const mist = state.rgb.g / 255;
+    const cold = state.rgb.b / 255;
+
+    if (bloomPass) {
+      bloomPass.strength = (isMobile ? 0.70 : 1.00) + heat * 0.18 + cold * 0.12;
+      bloomPass.radius = 0.50 + mist * 0.18;
+      bloomPass.threshold = 0.12;
+    }
+  }
+
+  function updateDebris(dt, time) {
+    const heat = state.rgb.r / 255;
+    const cold = state.rgb.b / 255;
+    const hallucination = state.metrics.hallucinationRisk / 100;
+    const pressure = state.mode === 'gravity' ? 1 : 0;
+    const fracture = state.mode === 'fracture' ? 1 : 0;
+
+    debrisGroup.rotation.y = Math.sin(time * 0.07) * 0.03;
+    debrisGroup.rotation.x = -0.08 + state.vector.z * 0.04;
+
+    for (const item of debrisItems) {
+      item.radius -= (item.speed + pressure * 0.006) * (1.0 + hallucination * 0.45);
+      item.angle += item.speed * item.side * (1.8 + pressure * 0.7);
+
+      const near = clamp((5.8 - item.radius) / 4.8, 0, 1);
+      const x = Math.cos(item.angle) * item.radius;
+      const z = Math.sin(item.angle) * item.radius * item.flatten;
+      const y = item.height * (1.0 - near * 0.45) + Math.sin(time * 0.35 + item.phase) * 0.035;
+
+      item.mesh.position.set(x, y, z);
+      item.mesh.rotation.x += 0.004 + item.speed * 0.5;
+      item.mesh.rotation.y += 0.006 + item.speed * 0.7;
+      item.mesh.rotation.z += 0.003;
+
+      item.mesh.scale.set(
+        item.size * (1.0 + near * 0.35),
+        item.size * (1.0 - near * 0.16),
+        item.size
+      );
+
+      item.mesh.material.emissive.setRGB(
+        0.06 + near * (0.55 + heat * 0.42 + fracture * 0.28),
+        0.03 + near * 0.16,
+        0.04 + cold * 0.10
+      );
+      item.mesh.material.emissiveIntensity = 0.12 + near * (0.8 + heat * 0.42);
+
+      if (item.radius < 2.25) {
+        resetDebris(item);
+      }
+    }
+  }
+
+  function updateScene(dt, time) {
+    state.rgb.r = lerp(state.rgb.r, state.targetRgb.r, 0.08);
+    state.rgb.g = lerp(state.rgb.g, state.targetRgb.g, 0.08);
+    state.rgb.b = lerp(state.rgb.b, state.targetRgb.b, 0.08);
+
+    state.vector.x = lerp(state.vector.x, state.targetVector.x, 0.08);
+    state.vector.y = lerp(state.vector.y, state.targetVector.y, 0.08);
+    state.vector.z = lerp(state.vector.z, state.targetVector.z, 0.08);
+
+    updateBlackHoleUniforms(time);
+    updateDebris(dt, time);
+  }
+
+  function resizeCanvas() {
+    isMobile = mobileMedia.matches;
+
+    W = Math.max(1, stage.clientWidth);
+    H = Math.max(1, stage.clientHeight);
+
+    const dpr = getSafePixelRatio();
+
+    renderer.setPixelRatio(dpr);
+    renderer.setSize(W, H, false);
+
+    if (composer) {
+      composer.setPixelRatio?.(dpr);
+      composer.setSize(W, H);
+      bloomPass?.setSize?.(W, H);
+    }
+
+    debrisCamera.aspect = W / H;
+    debrisCamera.updateProjectionMatrix();
+
+    blackHoleUniforms.uResolution.value.set(W * dpr, H * dpr);
+  }
+
   function bindUI() {
     $('lang-zh')?.addEventListener('click', () => {
       state.lang = 'zh';
@@ -2356,38 +2287,8 @@ z = 探索開放為正，秩序收束為負。
     });
   }
 
-  let resizeRaf = 0;
-
-  function resizeCanvas() {
-    cancelAnimationFrame(resizeRaf);
-
-    resizeRaf = requestAnimationFrame(() => {
-      isMobile = mobileMedia.matches;
-
-      W = Math.max(1, stage.clientWidth);
-      H = Math.max(1, stage.clientHeight);
-
-      const dpr = getSafePixelRatio();
-
-      renderer.setPixelRatio(dpr);
-      renderer.setSize(W, H, false);
-
-      camera.aspect = W / H;
-      camera.updateProjectionMatrix();
-
-      if (composer) {
-        composer.setPixelRatio?.(dpr);
-        composer.setSize(W, H);
-        bloomPass?.setSize?.(W, H);
-      }
-
-      singularity.starField.material.uniforms.uDpr.value = dpr;
-      singularity.semanticDust.material.uniforms.uDpr.value = dpr;
-    });
-  }
-
-  window.addEventListener('resize', resizeCanvas, { passive: true });
-  mobileMedia.addEventListener?.('change', resizeCanvas);
+  let running = true;
+  let visible = !document.hidden;
 
   renderer.domElement.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
@@ -2395,39 +2296,17 @@ z = 探索開放為正，秩序收束為負。
     document.body.classList.add('webgl-lost');
   });
 
-  function disposeScene() {
-    running = false;
-    window.removeEventListener('resize', resizeCanvas);
-
-    scene.traverse((obj) => {
-      obj.geometry?.dispose?.();
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-
-      mats.forEach((mat) => {
-        if (!mat) return;
-        Object.keys(mat).forEach((key) => {
-          const value = mat[key];
-          if (value?.isTexture) value.dispose?.();
-        });
-        mat.dispose?.();
-      });
-    });
-
-    composer?.dispose?.();
-    renderer.dispose();
-  }
-
-  window.addEventListener('beforeunload', disposeScene);
-
-  const clock = new THREE.Clock();
-  let running = true;
-  let visible = !document.hidden;
-  let elapsed = 0;
+  window.addEventListener('resize', resizeCanvas, { passive: true });
+  mobileMedia.addEventListener?.('change', resizeCanvas);
 
   document.addEventListener('visibilitychange', () => {
     visible = !document.hidden;
     if (visible) clock.getDelta();
   });
+
+  const clock = new THREE.Clock();
+  let elapsed = 0;
+  let frameCount = 0;
 
   function animate() {
     if (!running) return;
@@ -2438,14 +2317,43 @@ z = 探索開放為正，秩序收束為負。
 
     const dt = Math.min(clock.getDelta(), 0.033);
     elapsed += dt;
+    frameCount++;
 
-    updateSingularityVisuals(elapsed, dt);
+    updateScene(dt, elapsed);
 
     if (bloomEnabled && composer) composer.render();
     else renderer.render(scene, camera);
 
-    if (Math.floor(elapsed * 8) % 2 === 0) updateUI();
+    renderer.autoClear = false;
+    renderer.render(debrisScene, debrisCamera);
+    renderer.autoClear = true;
+
+    if (frameCount % 10 === 0) {
+      updateUI();
+    }
   }
+
+  function disposeScene() {
+    running = false;
+    window.removeEventListener('resize', resizeCanvas);
+
+    scene.traverse((obj) => {
+      obj.geometry?.dispose?.();
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => mat?.dispose?.());
+    });
+
+    debrisScene.traverse((obj) => {
+      obj.geometry?.dispose?.();
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => mat?.dispose?.());
+    });
+
+    composer?.dispose?.();
+    renderer.dispose();
+  }
+
+  window.addEventListener('beforeunload', disposeScene);
 
   window.lssDebug = function () {
     const snap = getSnapshot();
